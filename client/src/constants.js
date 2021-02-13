@@ -1,0 +1,1 @@
+export const BSC_NODE = "https://bsc-dataseed.binance.org/"
