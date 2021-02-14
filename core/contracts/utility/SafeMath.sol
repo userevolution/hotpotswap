@@ -84,6 +84,14 @@ library SafeMath {
         return c;
     }
 
+    uint constant WAD = 10 ** 18;
+    uint256 private constant _POSITIVE_INT256_MAX = 2**255 - 1;
+
+    //rounds to zero if x*y < WAD / 2
+    function wmul(uint256 x, uint256 y) internal pure returns (uint256 z) {
+        z = add(mul(x, y), WAD / 2) / WAD;
+    }
+
     /**
      * @dev Returns the integer division of two unsigned integers. Reverts on
      * division by zero. The result is rounded towards zero.
@@ -97,6 +105,34 @@ library SafeMath {
      */
     function div(uint256 a, uint256 b) internal pure returns (uint256) {
         return div(a, b, "SafeMath: division by zero");
+    }
+
+    //rounds to zero if x*y < WAD / 2
+    function wdiv(uint256 x, uint256 y) internal pure returns (uint256 z) {
+        z = add(mul(x, WAD), y / 2) / y;
+    }
+
+    function wfrac(uint256 x, uint256 y, uint256 z) internal pure returns (uint256 r) {
+        r = mul(x, y) / z;
+    }
+
+    function toInt256(uint256 x) internal pure returns (int256) {
+        require(x <= _POSITIVE_INT256_MAX, "uint256 overflow");
+        return int256(x);
+    }
+
+    // see https://github.com/OpenZeppelin/openzeppelin-contracts/blob/v3.0.1/contracts/utils/SafeCast.sol#L103
+    function toUint256(int256 x) internal pure returns (uint256) {
+        require(x >= 0, "int overflow");
+        return uint256(x);
+    }
+
+    function min(uint256 x, uint256 y) internal pure returns (uint256) {
+        return x <= y ? x : y;
+    }
+
+    function max(uint256 x, uint256 y) internal pure returns (uint256) {
+        return x >= y ? x : y;
     }
 
     /**
