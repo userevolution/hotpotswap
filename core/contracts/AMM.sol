@@ -70,6 +70,23 @@ contract AMM is Lockable, Whitelist, IAMM {
     //     emaAlpha2Ln = emaAlpha2.wln();
     // }
 
+    function setMarkPremiumLimit(int256 value) external onlyWhitelisted() {
+        require(value != markPremiumLimit, "duplicated value");
+        markPremiumLimit = value;
+    }
+
+    function setEmaAlpha(int256 value) external onlyWhitelisted() {
+        require(value != emaAlpha, "duplicated value");
+        emaAlpha = value;
+        emaAlpha2 = 10**18 - value;
+        emaAlpha2Ln = value.wln();
+    }
+
+    function setFundingDampener(int256 value) external onlyWhitelisted() {
+        require(value != fundingDampener, "duplicated value");
+        fundingDampener = value;
+    }
+
     /**
      * @dev Share token's ERC20 address.
      */

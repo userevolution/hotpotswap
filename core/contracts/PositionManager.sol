@@ -19,7 +19,6 @@ contract PositionManager is Lockable, Whitelist, IPositionManager {
     using LibMathSigned for int256;
     using SafeERC20 for IERC20;
 
-    
 
     // Maps sponsor addresses to their positions. Each sponsor can have only one position.
     mapping(address => Types.PositionData) public positions;
@@ -115,6 +114,45 @@ contract PositionManager is Lockable, Whitelist, IPositionManager {
         addAddress(ammAddress);
     }
     
+    function setInitialMarginRate(uint256 value) external onlyWhitelisted() {
+        require(initialMarginRate != value, "duplicated value" );
+        initialMarginRate = value;
+    }
+
+    function setMaintenanceMarginRate(uint256 value) external onlyWhitelisted() {
+        require(maintenanceMarginRate != value, "duplicated value" );
+        maintenanceMarginRate = value;
+    }
+
+    function setLiquidationPenaltyRate(uint256 value) external onlyWhitelisted() {
+        require(liquidationPenaltyRate != value, "duplicated value" );
+        liquidationPenaltyRate = value;
+    }
+
+    function setPenaltyFundRate(uint256 value) external onlyWhitelisted() {
+        require(penaltyFundRate != value, "duplicated value" );
+        penaltyFundRate = value;
+    }
+
+    function setTakerDevFeeRate(int256 value) external onlyWhitelisted() {
+        require(takerDevFeeRate != value, "duplicated value" );
+        takerDevFeeRate = value;
+    }
+
+    function setMakerDevFeeRate(int256 value) external onlyWhitelisted() {
+        require(makerDevFeeRate != value, "duplicated value" );
+        makerDevFeeRate = value;
+    }
+
+    function setLotSize(uint256 value) external onlyWhitelisted() {
+        require(lotSize != value, "duplicated value" );
+        lotSize = value;
+    }
+
+    function setTradingLotSize(uint256 value) external onlyWhitelisted() {
+        require(tradingLotSize != value, "duplicated value" );
+        tradingLotSize = value;
+    }
 
     function deposit(uint256 collateralAmount) external {
         depositImplementation(msg.sender, collateralAmount);
@@ -129,6 +167,13 @@ contract PositionManager is Lockable, Whitelist, IPositionManager {
         onlyWhitelisted()
     {
         depositImplementation(trader, collateralAmount);
+    }
+
+    function withdrawFor(address trader, uint256 collateralAmount)
+        external
+        onlyWhitelisted()
+    {
+        withdrawImplementation(trader, collateralAmount);
     }
 
     function totalSize(Types.Side side) public view returns (uint256) {
