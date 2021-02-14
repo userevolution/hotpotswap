@@ -14,4 +14,18 @@ interface IPerpetual {
 
     function socialLossPerContract(Types.Side) external view returns (int256);
 
+    function isValidTradingLotSize(uint256 amount) external view returns (bool);
+
+    function tradePosition(address, address,Types.Side, uint256, uint256 ) external returns (uint256, uint256);
+
+    function depositFor(address, uint256) external;
+
+    function withdrawFor(address, uint256) external;
+
+    function markPrice() external view returns (uint256);
+
+    function isIMSafeWithPrice(address, uint256) external view returns (bool);
+
+    function isSafeWithPrice(address, uint256) external view returns (bool);
+
 }

@@ -37,13 +37,17 @@ contract AMM is Lockable, Whitelist, IAMM {
 
 
     // Adjustable params
+    uint256 public poolFeeRate = 10000000000000000; // 1%
+    uint256 public poolDevFeeRate = 5000000000000000; // 0.5%
+    uint256 public updatePremiumPrize = 1000000000000000000; // 1
+
     int256 public markPremiumLimit = 5000000000000000; // 0.5%
 
     int256 public emaAlpha = 3327787021630616; // 2 / (600 + 1)
     int256 public emaAlpha2 = 996672212978369384; // 10**18 - emaAlpha
     int256 public emaAlpha2Ln = -3333336419758231; // ln(emaAlpha2)
     int256 public fundingDampener = 500000000000000; // 0.05%
-
+    
     event CreatedAMM();
     event UpdateFundingRate(Types.FundingState fundingState);
 
@@ -69,6 +73,21 @@ contract AMM is Lockable, Whitelist, IAMM {
     //     emaAlpha2 = 10**18 - emaAlpha;
     //     emaAlpha2Ln = emaAlpha2.wln();
     // }
+
+    function setPoolFeeRate(uint256 value) external onlyWhitelisted() {
+        require(value != poolFeeRate, "duplicated value");
+        poolFeeRate = value;
+    }
+
+    function setPoolDevFeeRate(uint256 value) external onlyWhitelisted() {
+        require(value != poolDevFeeRate, "duplicated value");
+        poolDevFeeRate = value;
+    }
+
+    function setUpdatePremiumPrize(uint256 value) external onlyWhitelisted() {
+        require(value != updatePremiumPrize, "duplicated value");
+        updatePremiumPrize = value;
+    }
 
     function setMarkPremiumLimit(int256 value) external onlyWhitelisted() {
         require(value != markPremiumLimit, "duplicated value");
@@ -121,6 +140,60 @@ contract AMM is Lockable, Whitelist, IAMM {
     function currentAccumulatedFundingPerContract() public override returns (int256) {
         _funding();
         return fundingState.accumulatedFundingPerContract;
+    }
+
+    function depositAndBuy(
+        uint256 depositAmount,
+        uint256 tradeAmount,
+        uint256 limitPrice,
+        uint256 deadline
+    )
+        public
+    {
+        if (depositAmount > 0) {
+            perpetual.depositFor(msg.sender, depositAmount);
+        }
+        if (tradeAmount > 0) {
+            buy(tradeAmount, limitPrice, deadline);
+        }
+    }
+
+    function depositAndSell(
+        uint256 depositAmount,
+        uint256 tradeAmount,
+        uint256 limitPrice,
+        uint256 deadline
+    )
+        public
+    {
+        if (depositAmount > 0) {
+            perpetual.depositFor(msg.sender, depositAmount);
+        }
+        if (tradeAmount > 0) {
+            sell(tradeAmount, limitPrice, deadline);
+        }
+    }
+
+    /**
+     * @dev Buy/long with AMM.
+     */
+    function buy(
+        uint256 amount,
+        uint256 limitPrice,
+        uint256 deadline
+    ) public returns (uint256) {
+        return _buyFrom(msg.sender, amount, limitPrice, deadline);
+    }
+
+    /**
+     * @dev Sell/short with AMM.
+     */
+    function sell(
+        uint256 amount,
+        uint256 limitPrice,
+        uint256 deadline
+    ) public returns (uint256) {
+        return _sellFrom(msg.sender, amount, limitPrice, deadline);
     }
 
     // INTERNAL FUCTIONS
@@ -192,6 +265,94 @@ contract AMM is Lockable, Whitelist, IAMM {
     function _getBlockTimestamp() internal view returns (uint256) {
         // solium-disable-next-line security/no-block-members
         return block.timestamp;
+    }
+
+    function _buyFrom(
+        address trader,
+        uint256 amount,
+        uint256 limitPrice,
+        uint256 deadline
+    )
+        private
+        returns (uint256) {
+        require(perpetual.status() == Types.Status.NORMAL, "wrong perpetual status");
+        require(perpetual.isValidTradingLotSize(amount), "amount must be divisible by tradingLotSize");
+
+        uint256 price = _getBuyPrice(amount);
+        require(limitPrice >= price, "price limited");
+        require(_getBlockTimestamp() <= deadline, "deadline exceeded");
+        (uint256 opened, ) = perpetual.tradePosition(trader, _tradingAccount(), Types.Side.LONG, price, amount);
+
+        // uint256 value = price.wmul(amount);
+        // uint256 fee = value.wmul(poolFeeRate);
+        // uint256 devFee = value.wmul(poolDevFeeRate);
+        // address devAddress = perpetual.devAddress();
+
+        // perpetualProxy.transferCashBalance(trader, tradingAccount(), fee);
+        // perpetualProxy.transferCashBalance(trader, devAddress, devFee);
+
+        _forceFunding(); // x, y changed, so fair price changed. we need funding now
+        _mustSafe(trader, opened);
+        return opened;
+    }
+
+    function _sellFrom(
+        address trader,
+        uint256 amount,
+        uint256 limitPrice,
+        uint256 deadline
+    ) private returns (uint256) {
+        require(perpetual.status() == Types.Status.NORMAL, "wrong perpetual status");
+        require(perpetual.isValidTradingLotSize(amount), "amount must be divisible by tradingLotSize");
+
+        uint256 price = _getSellPrice(amount);
+        require(limitPrice <= price, "price limited");
+        require(_getBlockTimestamp() <= deadline, "deadline exceeded");
+        (uint256 opened, ) = perpetual.tradePosition(trader, _tradingAccount(), Types.Side.SHORT, price, amount);
+
+        // uint256 value = price.wmul(amount);
+        // uint256 fee = value.wmul(governance.poolFeeRate);
+        // uint256 devFee = value.wmul(governance.poolDevFeeRate);
+        // address devAddress = perpetualProxy.devAddress();
+        // perpetualProxy.transferCashBalance(trader, tradingAccount(), fee);
+        // perpetualProxy.transferCashBalance(trader, devAddress, devFee);
+
+        _forceFunding(); // x, y changed, so fair price changed. we need funding now
+        _mustSafe(trader, opened);
+        return opened;
+    }
+
+    function _getBuyPrice(uint256 amount) internal returns (uint256 price) {
+        uint256 x;
+        uint256 y;
+        (x, y) = _currentXY();
+        require(y != 0 && x != 0, "empty pool");
+        return x.wdiv(y.sub(amount));
+    }
+
+    function _getSellPrice(uint256 amount) internal returns (uint256 price) {
+        uint256 x;
+        uint256 y;
+        (x, y) = _currentXY();
+        require(y != 0 && x != 0, "empty pool");
+        return x.wdiv(y.add(amount));
+    }
+
+    function _currentXY() internal returns (uint256 x, uint256 y) {
+        _funding();
+        Types.PositionData memory account = perpetual.positions(_tradingAccount());
+        x = _availableMarginFromPoolAccount(account);
+        y = account.size;
+    }
+
+    function _mustSafe(address trader, uint256 opened) internal {
+        // perpetual.markPrice is a little different from ours
+        uint256 perpetualMarkPrice = perpetual.markPrice();
+        if (opened > 0) {
+            require(perpetual.isIMSafeWithPrice(trader, perpetualMarkPrice), "im unsafe");
+        }
+        require(perpetual.isSafeWithPrice(trader, perpetualMarkPrice), "sender unsafe");
+        require(perpetual.isSafeWithPrice(_tradingAccount(), perpetualMarkPrice), "amm unsafe");
     }
 
     function _nextStateWithTimespan(

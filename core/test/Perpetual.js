@@ -67,6 +67,16 @@ contract('Perpetual', accounts => {
         const collateralAmountAlice3 = await perpetualInstance.totalRawCollateral(alice)
         assert.equal(collateralAmountAlice3, web3.utils.toWei("1000"))
 
+        // Only admin can proceed WithdrawFor()
+        try {
+            await perpetualInstance.withdrawFor(alice, web3.utils.toWei("100"), { from: bob })
+        } catch (error) {
+            assert.ok(error.message.includes("caller is not the owner"));
+        }
+        await perpetualInstance.withdrawFor(alice, web3.utils.toWei("100"), { from: admin })
+        const collateralAmountAlice4 = await perpetualInstance.totalRawCollateral(alice)
+        assert.equal(collateralAmountAlice4, web3.utils.toWei("900"))
+
     });
 
 

@@ -65,13 +65,14 @@ contract PositionManager is Lockable, Whitelist, IPositionManager {
     event Deposit(address indexed trader, uint256 collateralAmount);
     event DisableWithdraw(address indexed caller);
     event EnableWithdraw(address indexed caller);
+    event EnterEmergencyStatus(uint256 price);
+    event Trade(address indexed trader, Types.Side side, uint256 price, uint256 amount);
 
-    // event UpdatePositionAccount(
-    //     address indexed trader,
-    //     Types.PositionData account,
-    //     uint256 perpetualTotalSize,
-    //     uint256 price
-    // );
+    event UpdatePositionAccount(
+        address indexed trader,
+        uint256 perpetualTotalSize,
+        uint256 price
+    );
 
     constructor(
         address _collateralAddress,
@@ -237,6 +238,10 @@ contract PositionManager is Lockable, Whitelist, IPositionManager {
         return status == Types.Status.NORMAL ? amm.currentMarkPrice() : settlementPrice;
     }
 
+    function isIMSafeWithPrice(address trader, uint256 currentMarkPrice) public returns (bool) {
+        return _availableMarginWithPrice(trader, currentMarkPrice) >= 0;
+    }
+
     function totalRawCollateral(address trader)
         public
         view
@@ -244,6 +249,52 @@ contract PositionManager is Lockable, Whitelist, IPositionManager {
     {
         Types.PositionData storage positionData = positions[trader];
         return positionData.rawCollateral;
+    }
+
+    function isValidTradingLotSize(uint256 amount) public view returns (bool) {
+        return amount > 0 && amount.mod(tradingLotSize) == 0;
+    }
+
+    function isValidLotSize(uint256 amount) public view returns (bool) {
+        return amount > 0 && amount.mod(lotSize) == 0;
+    }
+
+    function tradePosition(
+        address taker,
+        address maker,
+        Types.Side side,
+        uint256 price,
+        uint256 amount
+    )
+        public
+        onlyNotPaused()
+        onlyWhitelisted()
+        returns (uint256 takerOpened, uint256 makerOpened)
+    {
+        require(status != Types.Status.EMERGENCY, "wrong perpetual status");
+        require(side == Types.Side.LONG || side == Types.Side.SHORT, "side must be long or short");
+        require(isValidLotSize(amount), "amount must be divisible by lotSize");
+
+        takerOpened = _trade(taker, side, price, amount);
+        makerOpened = _trade(maker, _counterSide(side), price, amount);
+        require(totalSize(Types.Side.LONG) == totalSize(Types.Side.SHORT), "imbalanced total size");
+
+        emit Trade(taker, side, price, amount);
+        emit Trade(maker, _counterSide(side), price, amount);
+    }
+
+     /**
+     * @dev Set perpetual status to 'emergency'. It can be called multiple times to set price.
+     *      In emergency mode, main function like trading / withdrawing is disabled to prevent unexpected loss.
+     *
+     * @param price Price used as mark price in emergency mode.
+     */
+    function beginGlobalSettlement(uint256 price) external onlyWhitelisted() {
+        require(status != Types.Status.SETTLED, "wrong perpetual status");
+        status = Types.Status.EMERGENCY;
+
+        settlementPrice = price;
+        emit EnterEmergencyStatus(price);
     }
 
     /****************************************
@@ -296,6 +347,15 @@ contract PositionManager is Lockable, Whitelist, IPositionManager {
         );
     }
 
+    function _counterSide(Types.Side side) internal pure returns (Types.Side) {
+        if (side == Types.Side.LONG) {
+            return Types.Side.SHORT;
+        } else if (side == Types.Side.SHORT) {
+            return Types.Side.LONG;
+        }
+        return side;
+    }
+
     function _decrementCollateralBalances(
         Types.PositionData storage positionData,
         uint256 collateralAmount
@@ -304,9 +364,9 @@ contract PositionManager is Lockable, Whitelist, IPositionManager {
         rawTotalPositionCollateral = rawTotalPositionCollateral.sub(collateralAmount.toInt256());
     }
 
-    function _availableMarginWithPrice(address trader, uint256 markPrice) internal returns (int256) {
-        int256 marginBalance = _marginBalanceWithPrice(trader, markPrice);
-        int256 margin = _marginWithPrice(trader, markPrice).toInt256();
+    function _availableMarginWithPrice(address trader, uint256 currentMarkPrice) internal returns (int256) {
+        int256 marginBalance = _marginBalanceWithPrice(trader, currentMarkPrice);
+        int256 margin = _marginWithPrice(trader, currentMarkPrice).toInt256();
         return marginBalance.sub(margin);
     }
 
@@ -334,21 +394,21 @@ contract PositionManager is Lockable, Whitelist, IPositionManager {
         return profit.sub(loss1).sub(loss2);
     }
 
-    function _marginBalanceWithPrice(address trader, uint256 markPrice) internal returns (int256) {
-        return positions[trader].rawCollateral.add(_pnlWithPrice(trader, markPrice));
+    function _marginBalanceWithPrice(address trader, uint256 currentMarkPrice) internal returns (int256) {
+        return positions[trader].rawCollateral.add(_pnlWithPrice(trader, currentMarkPrice));
     }
 
-    function _maintenanceMarginWithPrice(address trader, uint256 markPrice) internal view returns (uint256) {
-        return positions[trader].size.wmul(markPrice).wmul(maintenanceMarginRate);
+    function _maintenanceMarginWithPrice(address trader, uint256 currentMarkPrice) internal view returns (uint256) {
+        return positions[trader].size.wmul(currentMarkPrice).wmul(maintenanceMarginRate);
     }
 
-    function _marginWithPrice(address trader, uint256 markPrice) internal view returns (uint256) {
-        return positions[trader].size.wmul(markPrice).wmul(initialMarginRate);
+    function _marginWithPrice(address trader, uint256 currentMarkPrice) internal view returns (uint256) {
+        return positions[trader].size.wmul(currentMarkPrice).wmul(initialMarginRate);
     }
 
-    function _pnlWithPrice(address trader, uint256 markPrice) internal returns (int256) {
+    function _pnlWithPrice(address trader, uint256 currentMarkPrice) internal returns (int256) {
         Types.PositionData storage account = positions[trader];
-        return _calculatePnl(account, markPrice, account.size);
+        return _calculatePnl(account, currentMarkPrice, account.size);
     }
 
     function _socialLossWithAmount(Types.PositionData storage account, uint256 amount)
@@ -393,19 +453,75 @@ contract PositionManager is Lockable, Whitelist, IPositionManager {
         return loss;
     }
 
-    
-
-    function _remargin(address trader, uint256 markPrice) internal {
+    function _remargin(address trader, uint256 currentMarkPrice) internal {
         Types.PositionData storage account = positions[trader];
         if (account.size == 0) {
             return;
         }
-        int256 rpnl = _calculatePnl(account, markPrice, account.size);
+        int256 rpnl = _calculatePnl(account, currentMarkPrice, account.size);
         account.rawCollateral = account.rawCollateral.add(rpnl);
-        account.entryValue = markPrice.wmul(account.size);
+        account.entryValue = currentMarkPrice.wmul(account.size);
         account.entrySocialLoss = socialLossPerContract(account.side).wmul(account.size.toInt256());
         account.entryFundingLoss = amm.currentAccumulatedFundingPerContract().wmul(account.size.toInt256());
-        // emit UpdatePositionAccount(trader, account, totalSize(account.side), markPrice);
+        emit UpdatePositionAccount(trader, totalSize(account.side), currentMarkPrice);
+    }
+
+    function _trade(address trader, Types.Side side, uint256 price, uint256 amount) internal returns (uint256) {
+        uint256 opened = amount;
+        uint256 closed;
+        Types.PositionData storage account = positions[trader];
+        Types.Side originalSide = account.side;
+        if (account.size > 0 && account.side != side) {
+            closed = account.size.min(amount);
+            _close(account, price, closed);
+            opened = opened.sub(closed);
+        }
+        if (opened > 0) {
+            _open(account, side, price, opened);
+        }
+        positions[trader] = account;
+        emit UpdatePositionAccount(trader, totalSize(originalSide), price);
+        return opened;
+    }
+
+    function _decreaseTotalSize(Types.Side side, uint256 amount) internal {
+        totalSizes[uint256(side)] = totalSizes[uint256(side)].sub(amount);
+    }
+
+    function _increaseTotalSize(Types.Side side, uint256 amount) internal {
+        totalSizes[uint256(side)] = totalSizes[uint256(side)].add(amount);
+    }
+
+    function _open(Types.PositionData storage account, Types.Side side, uint256 price, uint256 amount) internal {
+        require(amount > 0, "open: invald amount");
+        if (account.size == 0) {
+            account.side = side;
+        }
+        account.size = account.size.add(amount);
+        account.entryValue = account.entryValue.add(price.wmul(amount));
+        account.entrySocialLoss = account.entrySocialLoss.add(socialLossPerContract(side).wmul(amount.toInt256()));
+        account.entryFundingLoss = account.entryFundingLoss.add(
+            amm.currentAccumulatedFundingPerContract().wmul(amount.toInt256())
+        );
+        _increaseTotalSize(side, amount);
+    }
+
+    function _close(Types.PositionData storage account, uint256 price, uint256 amount) internal returns (int256) {
+        int256 rpnl = _calculatePnl(account, price, amount);
+        account.rawCollateral = account.rawCollateral.add(rpnl);
+        account.entrySocialLoss = account.entrySocialLoss.wmul(account.size.sub(amount).toInt256()).wdiv(
+            account.size.toInt256()
+        );
+        account.entryFundingLoss = account.entryFundingLoss.wmul(account.size.sub(amount).toInt256()).wdiv(
+            account.size.toInt256()
+        );
+        account.entryValue = account.entryValue.wmul(account.size.sub(amount)).wdiv(account.size);
+        account.size = account.size.sub(amount);
+        _decreaseTotalSize(account.side, amount);
+        if (account.size == 0) {
+            account.side = Types.Side.FLAT;
+        }
+        return rpnl;
     }
 
 }

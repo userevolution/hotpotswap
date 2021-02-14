@@ -5,8 +5,8 @@ import "./utility/Whitelist.sol";
 import "./interfaces/IPriceFeeder.sol";
 
 contract PriceFeeder is Whitelist, IPriceFeeder {
-    uint256 public value = 100000; // 0.1 USE PPM UNIT (1.0 equals to 1,000,000)
-    uint256 public newValue = 100000; // 0.1 USE PPM UNIT (1.0 equals to 1,000,000)
+    uint256 public value = 100000; // wad
+    uint256 public newValue = 100000; // wad
     uint256 private timestamp;
 
     constructor() public {
