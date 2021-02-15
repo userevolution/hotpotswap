@@ -16,6 +16,12 @@ import "./interfaces/IPriceFeeder.sol";
  * @title AMM contract
  */
 
+interface IFundingCalculator {
+
+    function getAccumulatedFunding(int256, int256, int256, int256) external view returns (int256, int256);
+
+}
+
 contract AMM is Lockable, Whitelist, IAMM {
     using SafeMath for uint256;
     using LibMathSigned for int256;
@@ -34,11 +40,9 @@ contract AMM is Lockable, Whitelist, IAMM {
     // Perpetual contract.
     IPerpetual public perpetual;
 
-
+    IFundingCalculator public fundingCalculator;
 
     // Adjustable params
-    uint256 public poolFeeRate = 10000000000000000; // 1%
-    uint256 public poolDevFeeRate = 5000000000000000; // 0.5%
     uint256 public updatePremiumPrize = 1000000000000000000; // 1
 
     int256 public markPremiumLimit = 5000000000000000; // 0.5%
@@ -67,21 +71,6 @@ contract AMM is Lockable, Whitelist, IAMM {
         addAddress(msg.sender);
 
         emit CreatedAMM();
-    }
-
-    // function testEmaAlpha() public view returns (int256 emaAlpha2, int256 emaAlpha2Ln) {
-    //     emaAlpha2 = 10**18 - emaAlpha;
-    //     emaAlpha2Ln = emaAlpha2.wln();
-    // }
-
-    function setPoolFeeRate(uint256 value) external onlyWhitelisted() {
-        require(value != poolFeeRate, "duplicated value");
-        poolFeeRate = value;
-    }
-
-    function setPoolDevFeeRate(uint256 value) external onlyWhitelisted() {
-        require(value != poolDevFeeRate, "duplicated value");
-        poolDevFeeRate = value;
     }
 
     function setUpdatePremiumPrize(uint256 value) external onlyWhitelisted() {
@@ -132,6 +121,10 @@ contract AMM is Lockable, Whitelist, IAMM {
         require(price != 0, "index price error");
     }
 
+    function setFundingCalculator(address _fundingCalculatorAddress) external onlyWhitelisted() {
+        fundingCalculator = IFundingCalculator(_fundingCalculatorAddress);
+    }
+
     function createPool(uint256 amount) public {
         require(amount > 0, "amount must be greater than zero");
         require(perpetual.status() == Types.Status.NORMAL, "wrong perpetual status");
@@ -153,6 +146,50 @@ contract AMM is Lockable, Whitelist, IAMM {
             amount
         );
         _mintShareTokenTo(trader, amount);
+
+        _forceFunding(); // x, y changed, so fair price changed. we need funding now
+        _mustSafe(trader, opened);
+    }
+
+    function addLiquidity(uint256 amount) public {
+        require(perpetual.status() == Types.Status.NORMAL, "wrong perpetual status");
+
+        uint256 oldAvailableMargin;
+        uint256 oldPoolPositionSize;
+        (oldAvailableMargin, oldPoolPositionSize) = _currentXY();
+        require(oldPoolPositionSize != 0 && oldAvailableMargin != 0, "empty pool");
+
+        address trader = msg.sender;
+        uint256 price = oldAvailableMargin.wdiv(oldPoolPositionSize);
+
+        uint256 collateralAmount = amount.wmul(price).mul(2);
+        perpetual.transferCollateral(trader, _tradingAccount(), collateralAmount.toInt256());
+        (uint256 opened, ) = perpetual.tradePosition(trader, _tradingAccount(), Types.Side.SHORT, price, amount);
+
+        _mintShareTokenTo(trader, shareToken.totalSupply().wmul(amount).wdiv(oldPoolPositionSize));
+
+        _forceFunding(); // x, y changed, so fair price changed. we need funding now
+        _mustSafe(trader, opened);
+    }
+
+    function removeLiquidity(uint256 shareAmount) public {
+        require(perpetual.status() == Types.Status.NORMAL, "wrong perpetual status");
+
+        address trader = msg.sender;
+        uint256 oldAvailableMargin;
+        uint256 oldPoolPositionSize;
+        (oldAvailableMargin, oldPoolPositionSize) = _currentXY();
+        require(oldPoolPositionSize != 0 && oldAvailableMargin != 0, "empty pool");
+        require(shareToken.balanceOf(msg.sender) >= shareAmount, "shareBalance too low");
+        uint256 price = oldAvailableMargin.wdiv(oldPoolPositionSize);
+        uint256 amount = shareAmount.wmul(oldPoolPositionSize).wdiv(shareToken.totalSupply());
+        // align to lotSize
+        uint256 lotSize = perpetual.lotSize();
+        amount = amount.sub(amount.mod(lotSize));
+
+        perpetual.transferCollateral(_tradingAccount(), trader, (price.wmul(amount).mul(2)).toInt256());
+        _burnShareTokenFrom(trader, shareAmount);
+        (uint256 opened, ) = perpetual.tradePosition(trader, _tradingAccount(), Types.Side.LONG, price, amount);
 
         _forceFunding(); // x, y changed, so fair price changed. we need funding now
         _mustSafe(trader, opened);
@@ -325,14 +362,6 @@ contract AMM is Lockable, Whitelist, IAMM {
         require(_getBlockTimestamp() <= deadline, "deadline exceeded");
         (uint256 opened, ) = perpetual.tradePosition(trader, _tradingAccount(), Types.Side.LONG, price, amount);
 
-        // uint256 value = price.wmul(amount);
-        // uint256 fee = value.wmul(poolFeeRate);
-        // uint256 devFee = value.wmul(poolDevFeeRate);
-        // address devAddress = perpetual.devAddress();
-
-        // perpetualProxy.transferCashBalance(trader, tradingAccount(), fee);
-        // perpetualProxy.transferCashBalance(trader, devAddress, devFee);
-
         _forceFunding(); // x, y changed, so fair price changed. we need funding now
         _mustSafe(trader, opened);
         return opened;
@@ -352,13 +381,6 @@ contract AMM is Lockable, Whitelist, IAMM {
         require(_getBlockTimestamp() <= deadline, "deadline exceeded");
         (uint256 opened, ) = perpetual.tradePosition(trader, _tradingAccount(), Types.Side.SHORT, price, amount);
 
-        // uint256 value = price.wmul(amount);
-        // uint256 fee = value.wmul(governance.poolFeeRate);
-        // uint256 devFee = value.wmul(governance.poolDevFeeRate);
-        // address devAddress = perpetualProxy.devAddress();
-        // perpetualProxy.transferCashBalance(trader, tradingAccount(), fee);
-        // perpetualProxy.transferCashBalance(trader, devAddress, devFee);
-
         _forceFunding(); // x, y changed, so fair price changed. we need funding now
         _mustSafe(trader, opened);
         return opened;
@@ -366,6 +388,10 @@ contract AMM is Lockable, Whitelist, IAMM {
 
     function _mintShareTokenTo(address trader, uint256 amount) internal {
         require(shareToken.mint(trader, amount), "mint failed");
+    }
+
+    function _burnShareTokenFrom(address trader, uint256 amount) internal {
+        shareToken.burn(trader, amount);
     }
 
     function _getBuyPrice(uint256 amount) internal returns (uint256 price) {
@@ -413,7 +439,7 @@ contract AMM is Lockable, Whitelist, IAMM {
         if (fundingState.lastFundingTime != endTimestamp) {
             int256 timeDelta = endTimestamp.sub(fundingState.lastFundingTime).toInt256();
             int256 acc;
-            (fundingState.lastEMAPremium, acc) = _getAccumulatedFunding(
+            (fundingState.lastEMAPremium, acc) = fundingCalculator.getAccumulatedFunding(
                 timeDelta,
                 fundingState.lastEMAPremium,
                 fundingState.lastPremium,
@@ -467,233 +493,5 @@ contract AMM is Lockable, Whitelist, IAMM {
         fundingState.lastEMAPremium = 0;
     }
 
-    /**
-     * @notice The intermediate variables required by getAccumulatedFunding. This is only used to move stack
-     *         variables to storage variables.
-     */
-    struct AccumulatedFundingCalculator {
-        int256 vLimit;
-        int256 vDampener;
-        int256 t1; // normal int, not WAD
-        int256 t2; // normal int, not WAD
-        int256 t3; // normal int, not WAD
-        int256 t4; // normal int, not WAD
-    }
-
-    function timeOnFundingCurve(
-        int256 y,
-        int256 v0,
-        int256 _lastPremium
-    )
-        internal
-        view
-        returns (
-            int256 t // normal int, not WAD
-        )
-    {
-        require(y != _lastPremium, "no solution 1 on funding curve");
-        t = y.sub(_lastPremium);
-        t = t.wdiv(v0.sub(_lastPremium));
-        require(t > 0, "no solution 2 on funding curve");
-        require(t < LibMathSigned.WAD(), "no solution 3 on funding curve");
-        t = t.wln();
-        t = t.wdiv(emaAlpha2Ln);
-        t = t.ceil(LibMathSigned.WAD()) / LibMathSigned.WAD();
-    }
-
-    /**
-     * @notice Sum emaPremium curve between [x, y)
-     *
-     * @param x Begin time. normal int, not WAD.
-     * @param y End time. normal int, not WAD.
-     * @param v0 LastEMAPremium.
-     * @param _lastPremium LastPremium.
-     */
-    function integrateOnFundingCurve(
-        int256 x,
-        int256 y,
-        int256 v0,
-        int256 _lastPremium
-    ) internal view returns (int256 r) {
-        require(x <= y, "integrate reversed");
-        r = v0.sub(_lastPremium);
-        r = r.wmul(emaAlpha2.wpowi(x).sub(emaAlpha2.wpowi(y)));
-        r = r.wdiv(emaAlpha);
-        r = r.add(_lastPremium.mul(y.sub(x)));
-    }
-
-    function _getAccumulatedFunding(
-        int256 n,
-        int256 v0,
-        int256 _lastPremium,
-        int256 _lastIndexPrice
-    )
-        internal
-        view
-        returns (
-            int256 vt, // new LastEMAPremium
-            int256 acc
-        )
-    {
-        require(n > 0, "we can't go back in time");
-        AccumulatedFundingCalculator memory ctx;
-        vt = v0.sub(_lastPremium);
-        vt = vt.wmul(emaAlpha2.wpowi(n));
-        vt = vt.add(_lastPremium);
-        ctx.vLimit = markPremiumLimit.wmul(_lastIndexPrice);
-        ctx.vDampener = fundingDampener.wmul(_lastIndexPrice);
-        if (v0 <= -ctx.vLimit) {
-            // part A
-            if (vt <= -ctx.vLimit) {
-                acc = (-ctx.vLimit).add(ctx.vDampener).mul(n);
-            } else if (vt <= -ctx.vDampener) {
-                ctx.t1 = timeOnFundingCurve(-ctx.vLimit, v0, _lastPremium);
-                acc = (-ctx.vLimit).mul(ctx.t1);
-                acc = acc.add(integrateOnFundingCurve(ctx.t1, n, v0, _lastPremium));
-                acc = acc.add(ctx.vDampener.mul(n));
-            } else if (vt <= ctx.vDampener) {
-                ctx.t1 = timeOnFundingCurve(-ctx.vLimit, v0, _lastPremium);
-                ctx.t2 = timeOnFundingCurve(-ctx.vDampener, v0, _lastPremium);
-                acc = (-ctx.vLimit).mul(ctx.t1);
-                acc = acc.add(integrateOnFundingCurve(ctx.t1, ctx.t2, v0, _lastPremium));
-                acc = acc.add(ctx.vDampener.mul(ctx.t2));
-            } else if (vt <= ctx.vLimit) {
-                ctx.t1 = timeOnFundingCurve(-ctx.vLimit, v0, _lastPremium);
-                ctx.t2 = timeOnFundingCurve(-ctx.vDampener, v0, _lastPremium);
-                ctx.t3 = timeOnFundingCurve(ctx.vDampener, v0, _lastPremium);
-                acc = (-ctx.vLimit).mul(ctx.t1);
-                acc = acc.add(integrateOnFundingCurve(ctx.t1, ctx.t2, v0, _lastPremium));
-                acc = acc.add(integrateOnFundingCurve(ctx.t3, n, v0, _lastPremium));
-                acc = acc.add(ctx.vDampener.mul(ctx.t2.sub(n).add(ctx.t3)));
-            } else {
-                ctx.t1 = timeOnFundingCurve(-ctx.vLimit, v0, _lastPremium);
-                ctx.t2 = timeOnFundingCurve(-ctx.vDampener, v0, _lastPremium);
-                ctx.t3 = timeOnFundingCurve(ctx.vDampener, v0, _lastPremium);
-                ctx.t4 = timeOnFundingCurve(ctx.vLimit, v0, _lastPremium);
-                acc = (-ctx.vLimit).mul(ctx.t1);
-                acc = acc.add(integrateOnFundingCurve(ctx.t1, ctx.t2, v0, _lastPremium));
-                acc = acc.add(integrateOnFundingCurve(ctx.t3, ctx.t4, v0, _lastPremium));
-                acc = acc.add(ctx.vLimit.mul(n.sub(ctx.t4)));
-                acc = acc.add(ctx.vDampener.mul(ctx.t2.sub(n).add(ctx.t3)));
-            }
-        } else if (v0 <= -ctx.vDampener) {
-            // part B
-            if (vt <= -ctx.vLimit) {
-                ctx.t4 = timeOnFundingCurve(-ctx.vLimit, v0, _lastPremium);
-                acc = integrateOnFundingCurve(0, ctx.t4, v0, _lastPremium);
-                acc = acc.add((-ctx.vLimit).mul(n.sub(ctx.t4)));
-                acc = acc.add(ctx.vDampener.mul(n));
-            } else if (vt <= -ctx.vDampener) {
-                acc = integrateOnFundingCurve(0, n, v0, _lastPremium);
-                acc = acc.add(ctx.vDampener.mul(n));
-            } else if (vt <= ctx.vDampener) {
-                ctx.t2 = timeOnFundingCurve(-ctx.vDampener, v0, _lastPremium);
-                acc = integrateOnFundingCurve(0, ctx.t2, v0, _lastPremium);
-                acc = acc.add(ctx.vDampener.mul(ctx.t2));
-            } else if (vt <= ctx.vLimit) {
-                ctx.t2 = timeOnFundingCurve(-ctx.vDampener, v0, _lastPremium);
-                ctx.t3 = timeOnFundingCurve(ctx.vDampener, v0, _lastPremium);
-                acc = integrateOnFundingCurve(0, ctx.t2, v0, _lastPremium);
-                acc = acc.add(integrateOnFundingCurve(ctx.t3, n, v0, _lastPremium));
-                acc = acc.add(ctx.vDampener.mul(ctx.t2.sub(n).add(ctx.t3)));
-            } else {
-                ctx.t2 = timeOnFundingCurve(-ctx.vDampener, v0, _lastPremium);
-                ctx.t3 = timeOnFundingCurve(ctx.vDampener, v0, _lastPremium);
-                ctx.t4 = timeOnFundingCurve(ctx.vLimit, v0, _lastPremium);
-                acc = integrateOnFundingCurve(0, ctx.t2, v0, _lastPremium);
-                acc = acc.add(integrateOnFundingCurve(ctx.t3, ctx.t4, v0, _lastPremium));
-                acc = acc.add(ctx.vLimit.mul(n.sub(ctx.t4)));
-                acc = acc.add(ctx.vDampener.mul(ctx.t2.sub(n).add(ctx.t3)));
-            }
-        } else if (v0 <= ctx.vDampener) {
-            // part C
-            if (vt <= -ctx.vLimit) {
-                ctx.t3 = timeOnFundingCurve(-ctx.vDampener, v0, _lastPremium);
-                ctx.t4 = timeOnFundingCurve(-ctx.vLimit, v0, _lastPremium);
-                acc = integrateOnFundingCurve(ctx.t3, ctx.t4, v0, _lastPremium);
-                acc = acc.add((-ctx.vLimit).mul(n.sub(ctx.t4)));
-                acc = acc.add(ctx.vDampener.mul(n.sub(ctx.t3)));
-            } else if (vt <= -ctx.vDampener) {
-                ctx.t3 = timeOnFundingCurve(-ctx.vDampener, v0, _lastPremium);
-                acc = integrateOnFundingCurve(ctx.t3, n, v0, _lastPremium);
-                acc = acc.add(ctx.vDampener.mul(n.sub(ctx.t3)));
-            } else if (vt <= ctx.vDampener) {
-                acc = 0;
-            } else if (vt <= ctx.vLimit) {
-                ctx.t3 = timeOnFundingCurve(ctx.vDampener, v0, _lastPremium);
-                acc = integrateOnFundingCurve(ctx.t3, n, v0, _lastPremium);
-                acc = acc.sub(ctx.vDampener.mul(n.sub(ctx.t3)));
-            } else {
-                ctx.t3 = timeOnFundingCurve(ctx.vDampener, v0, _lastPremium);
-                ctx.t4 = timeOnFundingCurve(ctx.vLimit, v0, _lastPremium);
-                acc = integrateOnFundingCurve(ctx.t3, ctx.t4, v0, _lastPremium);
-                acc = acc.add(ctx.vLimit.mul(n.sub(ctx.t4)));
-                acc = acc.sub(ctx.vDampener.mul(n.sub(ctx.t3)));
-            }
-        } else if (v0 <= ctx.vLimit) {
-            // part D
-            if (vt <= -ctx.vLimit) {
-                ctx.t2 = timeOnFundingCurve(ctx.vDampener, v0, _lastPremium);
-                ctx.t3 = timeOnFundingCurve(-ctx.vDampener, v0, _lastPremium);
-                ctx.t4 = timeOnFundingCurve(-ctx.vLimit, v0, _lastPremium);
-                acc = integrateOnFundingCurve(0, ctx.t2, v0, _lastPremium);
-                acc = acc.add(integrateOnFundingCurve(ctx.t3, ctx.t4, v0, _lastPremium));
-                acc = acc.add((-ctx.vLimit).mul(n.sub(ctx.t4)));
-                acc = acc.add(ctx.vDampener.mul(n.sub(ctx.t3).sub(ctx.t2)));
-            } else if (vt <= -ctx.vDampener) {
-                ctx.t2 = timeOnFundingCurve(ctx.vDampener, v0, _lastPremium);
-                ctx.t3 = timeOnFundingCurve(-ctx.vDampener, v0, _lastPremium);
-                acc = integrateOnFundingCurve(0, ctx.t2, v0, _lastPremium);
-                acc = acc.add(integrateOnFundingCurve(ctx.t3, n, v0, _lastPremium));
-                acc = acc.add(ctx.vDampener.mul(n.sub(ctx.t3).sub(ctx.t2)));
-            } else if (vt <= ctx.vDampener) {
-                ctx.t2 = timeOnFundingCurve(ctx.vDampener, v0, _lastPremium);
-                acc = integrateOnFundingCurve(0, ctx.t2, v0, _lastPremium);
-                acc = acc.sub(ctx.vDampener.mul(ctx.t2));
-            } else if (vt <= ctx.vLimit) {
-                acc = integrateOnFundingCurve(0, n, v0, _lastPremium);
-                acc = acc.sub(ctx.vDampener.mul(n));
-            } else {
-                ctx.t4 = timeOnFundingCurve(ctx.vLimit, v0, _lastPremium);
-                acc = integrateOnFundingCurve(0, ctx.t4, v0, _lastPremium);
-                acc = acc.add(ctx.vLimit.mul(n.sub(ctx.t4)));
-                acc = acc.sub(ctx.vDampener.mul(n));
-            }
-        } else {
-            // part E
-            if (vt <= -ctx.vLimit) {
-                ctx.t1 = timeOnFundingCurve(ctx.vLimit, v0, _lastPremium);
-                ctx.t2 = timeOnFundingCurve(ctx.vDampener, v0, _lastPremium);
-                ctx.t3 = timeOnFundingCurve(-ctx.vDampener, v0, _lastPremium);
-                ctx.t4 = timeOnFundingCurve(-ctx.vLimit, v0, _lastPremium);
-                acc = ctx.vLimit.mul(ctx.t1);
-                acc = acc.add(integrateOnFundingCurve(ctx.t1, ctx.t2, v0, _lastPremium));
-                acc = acc.add(integrateOnFundingCurve(ctx.t3, ctx.t4, v0, _lastPremium));
-                acc = acc.add((-ctx.vLimit).mul(n.sub(ctx.t4)));
-                acc = acc.add(ctx.vDampener.mul(n.sub(ctx.t3).sub(ctx.t2)));
-            } else if (vt <= -ctx.vDampener) {
-                ctx.t1 = timeOnFundingCurve(ctx.vLimit, v0, _lastPremium);
-                ctx.t2 = timeOnFundingCurve(ctx.vDampener, v0, _lastPremium);
-                ctx.t3 = timeOnFundingCurve(-ctx.vDampener, v0, _lastPremium);
-                acc = ctx.vLimit.mul(ctx.t1);
-                acc = acc.add(integrateOnFundingCurve(ctx.t1, ctx.t2, v0, _lastPremium));
-                acc = acc.add(integrateOnFundingCurve(ctx.t3, n, v0, _lastPremium));
-                acc = acc.add(ctx.vDampener.mul(n.sub(ctx.t3).sub(ctx.t2)));
-            } else if (vt <= ctx.vDampener) {
-                ctx.t1 = timeOnFundingCurve(ctx.vLimit, v0, _lastPremium);
-                ctx.t2 = timeOnFundingCurve(ctx.vDampener, v0, _lastPremium);
-                acc = ctx.vLimit.mul(ctx.t1);
-                acc = acc.add(integrateOnFundingCurve(ctx.t1, ctx.t2, v0, _lastPremium));
-                acc = acc.add(ctx.vDampener.mul(-ctx.t2));
-            } else if (vt <= ctx.vLimit) {
-                ctx.t1 = timeOnFundingCurve(ctx.vLimit, v0, _lastPremium);
-                acc = ctx.vLimit.mul(ctx.t1);
-                acc = acc.add(integrateOnFundingCurve(ctx.t1, n, v0, _lastPremium));
-                acc = acc.sub(ctx.vDampener.mul(n));
-            } else {
-                acc = ctx.vLimit.sub(ctx.vDampener).mul(n);
-            }
-        }
-    } // getAccumulatedFunding
 
 }

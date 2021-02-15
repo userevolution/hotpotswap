@@ -11,7 +11,7 @@ abstract contract IExpandedIERC20 is IERC20 {
      * @notice Burns a specific amount of the caller's tokens.
      * @dev Only burns the caller's tokens, so it is safe to leave this method permissionless.
      */
-    function burn(uint256 value) external virtual;
+    function burn(address from, uint256 value) external virtual;
 
     /**
      * @notice Mints tokens and adds them to the balance of the `to` address.

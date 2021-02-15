@@ -1,6 +1,7 @@
 const Perpetual = artifacts.require('Perpetual')
 const MockToken = artifacts.require("MockToken")
 const AMM = artifacts.require('AMM');
+const FundingCalculator = artifacts.require('FundingCalculator');
 
 const { setupSystem, infinity } = require("./helpers/Utils")
 
@@ -36,6 +37,9 @@ contract('Perpetual', accounts => {
             {
                 from: admin
             })
+
+        const fundingCalculator = await FundingCalculator.new(ammInstance.address)
+        await ammInstance.setFundingCalculator(fundingCalculator.address)
 
         await perpetualInstance.setupAmm(ammInstance.address, { from: admin })
 

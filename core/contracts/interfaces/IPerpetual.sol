@@ -30,4 +30,6 @@ interface IPerpetual {
 
     function transferCollateral(address, address, int256) external;
 
+    function lotSize() external view returns (uint256);
+
 }

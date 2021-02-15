@@ -56,7 +56,7 @@ contract ExpandedERC20 is IExpandedIERC20, ERC20, MultiRole {
      * @dev Burns `value` tokens owned by `msg.sender`.
      * @param value amount of tokens to burn.
      */
-    function burn(uint256 value) external override onlyRoleHolder(uint256(Roles.Burner)) {
-        _burn(msg.sender, value);
+    function burn(address from, uint256 value) external override onlyRoleHolder(uint256(Roles.Burner)) {
+        _burn(from, value);
     }
 }

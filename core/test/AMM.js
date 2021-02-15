@@ -1,6 +1,7 @@
 const Perpetual = artifacts.require('Perpetual')
 const MockToken = artifacts.require("MockToken")
 const PriceFeeder = artifacts.require("PriceFeeder")
+const FundingCalculator = artifacts.require('FundingCalculator');
 const AMM = artifacts.require('AMM');
 
 const { setupSystem, infinity } = require("./helpers/Utils")
@@ -15,7 +16,8 @@ contract('AMM', accounts => {
 
     const admin = accounts[0]
     const alice = accounts[1]
-    const bob = accounts[1]
+    const bob = accounts[2]
+    const charlie = accounts[3]
 
     let perpetualInstance
     let mockTokenInstance
@@ -44,6 +46,9 @@ contract('AMM', accounts => {
             {
                 from: admin
             })
+
+            const fundingCalculator = await FundingCalculator.new(ammInstance.address)
+            await ammInstance.setFundingCalculator(fundingCalculator.address)
 
         await perpetualInstance.setupAmm(ammInstance.address, { from: admin })
     }
@@ -84,8 +89,6 @@ contract('AMM', accounts => {
         // re-deploy all contracts
         await deploy()
 
-        await ammInstance.setPoolFeeRate(0, { from: admin })
-        await ammInstance.setPoolDevFeeRate(0, { from: admin })
 
         // set index price
         await priceFeederInstance.updateValue(web3.utils.toWei("7000"), { from: admin });
@@ -120,8 +123,6 @@ contract('AMM', accounts => {
         // re-deploy all contracts
         await deploy()
 
-        await ammInstance.setPoolFeeRate(0, { from: admin })
-        await ammInstance.setPoolDevFeeRate(0, { from: admin })
 
         // set index price
         await priceFeederInstance.updateValue(web3.utils.toWei("7000"), { from: admin });
@@ -158,26 +159,95 @@ contract('AMM', accounts => {
         assert.equal(await perpetualInstance.isSafe.call(perpetualInstance.address), true)
         assert.equal(await perpetualInstance.isBankrupt.call(alice), false)
         assert.equal(await perpetualInstance.isBankrupt.call(perpetualInstance.address), false)
-        
-        assert.equal(web3.utils.fromWei(await perpetualInstance.availableMargin.call(alice)), "0") 
+
+        assert.equal(web3.utils.fromWei(await perpetualInstance.availableMargin.call(alice)), "0")
         assert.equal(web3.utils.fromWei(await perpetualInstance.availableMargin.call(perpetualInstance.address)), `${7000 * 2 - 7000 * 0.1}`)  // amm.x
 
-        assert.equal(web3.utils.fromWei(await perpetualInstance.pnl.call(alice)), "0") 
-        assert.equal(web3.utils.fromWei(await perpetualInstance.pnl.call(perpetualInstance.address)), "0") 
+        assert.equal(web3.utils.fromWei(await perpetualInstance.pnl.call(alice)), "0")
+        assert.equal(web3.utils.fromWei(await perpetualInstance.pnl.call(perpetualInstance.address)), "0")
 
-        assert.equal(web3.utils.fromWei(await perpetualInstance.totalRawCollateral(alice)), `${7000 * 0.1}`) 
-        assert.equal(web3.utils.fromWei(await perpetualInstance.totalRawCollateral(perpetualInstance.address)), `${7000 * 2}`) 
+        assert.equal(web3.utils.fromWei(await perpetualInstance.totalRawCollateral(alice)), `${7000 * 0.1}`)
+        assert.equal(web3.utils.fromWei(await perpetualInstance.totalRawCollateral(perpetualInstance.address)), `${7000 * 2}`)
 
-        assert.equal(web3.utils.fromWei(await perpetualInstance.getPositionEntryValue(alice)), `${7000}`) 
-        assert.equal(web3.utils.fromWei(await perpetualInstance.getPositionEntryValue(perpetualInstance.address)), `${7000}`) 
+        assert.equal(web3.utils.fromWei(await perpetualInstance.getPositionEntryValue(alice)), `${7000}`)
+        assert.equal(web3.utils.fromWei(await perpetualInstance.getPositionEntryValue(perpetualInstance.address)), `${7000}`)
 
-        assert.equal(web3.utils.fromWei(await perpetualInstance.positionMargin.call(alice)), "700") 
-        assert.equal(web3.utils.fromWei(await perpetualInstance.positionMargin.call(perpetualInstance.address)), "700") 
+        assert.equal(web3.utils.fromWei(await perpetualInstance.positionMargin.call(alice)), "700")
+        assert.equal(web3.utils.fromWei(await perpetualInstance.positionMargin.call(perpetualInstance.address)), "700")
 
-        assert.equal(web3.utils.fromWei(await perpetualInstance.maintenanceMargin.call(alice)), "350") 
-        assert.equal(web3.utils.fromWei(await perpetualInstance.maintenanceMargin.call(perpetualInstance.address)), "350") 
+        assert.equal(web3.utils.fromWei(await perpetualInstance.maintenanceMargin.call(alice)), "350")
+        assert.equal(web3.utils.fromWei(await perpetualInstance.maintenanceMargin.call(perpetualInstance.address)), "350")
 
     })
 
+    it('can open short/long position ', async () => {
+        // re-deploy all contracts
+        await deploy()
+
+        // set index price
+        await priceFeederInstance.updateValue(web3.utils.toWei("7000"), { from: admin });
+        await priceFeederInstance.confirmValueUpdate({ from: admin });
+        const indexPrice = await ammInstance.indexPrice();
+        assert.equal(web3.utils.fromWei(indexPrice.price), "7000");
+
+        // Approve
+        await mockTokenInstance.transfer(alice, web3.utils.toWei(`${7000 * 10 * 2.1}`), { from: admin });
+        await mockTokenInstance.transfer(bob, web3.utils.toWei(`${7000 * 3}`), { from: admin });
+        await mockTokenInstance.transfer(charlie, web3.utils.toWei(`${7000 * 3}`), { from: admin });
+        await mockTokenInstance.approve(perpetualInstance.address, infinity, { from: alice });
+        await mockTokenInstance.approve(perpetualInstance.address, infinity, { from: bob });
+        await mockTokenInstance.approve(perpetualInstance.address, infinity, { from: charlie });
+
+        // create amm
+        await perpetualInstance.deposit(web3.utils.toWei(`${7000 * 10 * 2.1}`), { from: alice })
+        await ammInstance.createPool(web3.utils.toWei("10"), {
+            from: alice
+        });
+
+        const shareTokenAddress = await ammInstance.shareTokenAddress()
+        const shareTokenInstance = await MockToken.at(shareTokenAddress)
+
+        // add and remove liquidity - no position on removing liqudity
+        await perpetualInstance.deposit(web3.utils.toWei(`${7000 * 3}`), {
+            from: bob
+        });
+        await ammInstance.addLiquidity(web3.utils.toWei("1"), {
+            from: bob
+        });
+
+        assert.equal(web3.utils.fromWei(await perpetualInstance.totalRawCollateral(bob)), `${7000}`)
+        assert.equal(web3.utils.fromWei(await shareTokenInstance.balanceOf(bob)), "1")
+
+        assert.equal(web3.utils.fromWei(await perpetualInstance.getPositionSize(bob)), "1")
+        assert.equal(await perpetualInstance.getPositionSide(bob), Side.SHORT)
+        assert.equal(web3.utils.fromWei(await perpetualInstance.getPositionEntryValue(bob)), `${7000}`)
+
+        // price == 7700
+        await ammInstance.buy(web3.utils.toWei("1"), web3.utils.toWei('10000'), infinity, {
+            from: bob
+        });
+
+        // assert.equal(web3.utils.fromWei(await perpetualInstance.totalRawCollateral(bob)), `${(6300 )}`) //7000 - 700 - 115.5
+        assert.equal(web3.utils.fromWei(await shareTokenInstance.balanceOf(bob)), "1")
+        assert.equal(web3.utils.fromWei(await perpetualInstance.getPositionSize(bob)), "0")
+        assert.equal(await perpetualInstance.getPositionSide(bob), Side.FLAT)
+        assert.equal(web3.utils.fromWei(await perpetualInstance.getPositionEntryValue(bob)), "0") // trade price * position
+
+        await shareTokenInstance.approve(ammInstance.address, infinity, {
+            from: bob
+        });
+        assert.equal(web3.utils.fromWei(await shareTokenInstance.balanceOf(bob)), "1")
+        await ammInstance.removeLiquidity(web3.utils.toWei("1"), {
+            from: bob
+        });
+
+        // price == 8477.7 * amount == 7707
+        // assert.equal(web3.utils.fromWei(await perpetualInstance.totalRawCollateral(bob)), "21700")
+        assert.equal(web3.utils.fromWei(await shareTokenInstance.balanceOf(bob)), "0")
+        assert.equal(await perpetualInstance.getPositionSide(bob), Side.LONG)
+
+        
+
+    })
 
 })
