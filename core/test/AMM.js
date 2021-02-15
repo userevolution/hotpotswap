@@ -2,9 +2,9 @@ const Perpetual = artifacts.require('Perpetual')
 const MockToken = artifacts.require("MockToken")
 const PriceFeeder = artifacts.require("PriceFeeder")
 const FundingCalculator = artifacts.require('FundingCalculator');
-const AMM = artifacts.require('AMM');
+const MockAMM = artifacts.require('MockAMM');
 
-const { setupSystem, infinity } = require("./helpers/Utils")
+const { setupSystem, infinity, increaseEvmBlock } = require("./helpers/Utils")
 
 const Side = {
     FLAT: 0,
@@ -22,7 +22,7 @@ contract('AMM', accounts => {
     let perpetualInstance
     let mockTokenInstance
     let ammInstance
-    let priceFeederInstance
+    let priceFeederInstance 
 
     const deploy = async () => {
         const { tokenFactoryAddress, mockTokenAddress, priceFeederAddress } = await setupSystem(accounts)
@@ -37,7 +37,7 @@ contract('AMM', accounts => {
                 from: admin
             })
 
-        ammInstance = await AMM.new(
+        ammInstance = await MockAMM.new(
             "Dow Jones Index Perpetual Share Token",
             "DJI-PERP",
             tokenFactoryAddress,
@@ -53,7 +53,7 @@ contract('AMM', accounts => {
         await perpetualInstance.setupAmm(ammInstance.address, { from: admin })
     }
 
-    before(async () => {
+    beforeEach(async () => {
 
         await deploy()
 
@@ -86,10 +86,6 @@ contract('AMM', accounts => {
 
     it('alice can check her available margin ', async () => {
 
-        // re-deploy all contracts
-        await deploy()
-
-
         // set index price
         await priceFeederInstance.updateValue(web3.utils.toWei("7000"), { from: admin });
         await priceFeederInstance.confirmValueUpdate({ from: admin });
@@ -119,10 +115,6 @@ contract('AMM', accounts => {
     })
 
     it('verify that AMM being deployed stores correct configuration ', async () => {
-
-        // re-deploy all contracts
-        await deploy()
-
 
         // set index price
         await priceFeederInstance.updateValue(web3.utils.toWei("7000"), { from: admin });
@@ -181,8 +173,6 @@ contract('AMM', accounts => {
     })
 
     it('can open short/long position ', async () => {
-        // re-deploy all contracts
-        await deploy()
 
         // set index price
         await priceFeederInstance.updateValue(web3.utils.toWei("7000"), { from: admin });
@@ -246,7 +236,115 @@ contract('AMM', accounts => {
         assert.equal(web3.utils.fromWei(await shareTokenInstance.balanceOf(bob)), "0")
         assert.equal(await perpetualInstance.getPositionSide(bob), Side.LONG)
 
+    })
+
+    it('user buys => price increases (above the limit) => long position pays for fundingLoss', async () => {
         
+        // set index price
+        await priceFeederInstance.updateValue(web3.utils.toWei("7000"), { from: admin });
+        await priceFeederInstance.confirmValueUpdate({ from: admin });
+        const indexPrice = await ammInstance.indexPrice();
+        assert.equal(web3.utils.fromWei(indexPrice.price), "7000");
+
+        // Approve
+        await mockTokenInstance.transfer(alice, web3.utils.toWei(`${7000 * 100 * 2.1}`), { from: admin });
+        await mockTokenInstance.transfer(bob, web3.utils.toWei(`${7000 * 3}`), { from: admin });
+        await mockTokenInstance.approve(perpetualInstance.address, infinity, { from: alice });
+        await mockTokenInstance.approve(perpetualInstance.address, infinity, { from: bob });
+
+        // create amm
+        await perpetualInstance.deposit(web3.utils.toWei(`${7000 * 100 * 2.1}`), { from: alice })
+        await ammInstance.createPool(web3.utils.toWei("100"), {
+            from: alice
+        });
+
+        await perpetualInstance.deposit(web3.utils.toWei(`${1000}`), {
+            from: bob
+        });
+        // trading price = 7035
+        const buyPrice = await ammInstance.getBuyPrice.call(web3.utils.toWei("0.5"))
+        assert.equal(7035, Math.floor(web3.utils.fromWei(buyPrice))) 
+
+        await ammInstance.buy(web3.utils.toWei("0.5"), web3.utils.toWei('10000'), infinity, {
+            from: bob
+        });
+
+        assert.equal(web3.utils.fromWei(await ammInstance.positionSize()), "99.5")
+        assert.equal(web3.utils.fromWei(await perpetualInstance.getPositionSize(perpetualInstance.address)), "99.5")
+        assert.equal(web3.utils.fromWei(await perpetualInstance.getPositionSize(alice)), "100")
+        assert.equal(web3.utils.fromWei(await perpetualInstance.getPositionSize(bob)), "0.5")
+        assert.equal(await perpetualInstance.getPositionSide(perpetualInstance.address), Side.LONG)
+        assert.equal(await perpetualInstance.getPositionSide(alice), Side.SHORT)
+        assert.equal(await perpetualInstance.getPositionSide(bob), Side.LONG)
+
+        assert.equal(web3.utils.fromWei(await perpetualInstance.getPositionEntryFundingLoss(bob)), "0")
+
+        const currentFairPrice = await ammInstance.currentFairPrice.call()
+        assert.equal(7070, Math.floor(web3.utils.fromWei(currentFairPrice))) 
+
+        // now fairPrice = 7070, indexPrice = 7000
+        const currentMarkPrice = await ammInstance.currentMarkPrice.call()
+        assert.equal(7000, Math.floor(web3.utils.fromWei(currentMarkPrice))) 
+        const currentFundingRate = await ammInstance.currentFundingRate.call()
+        assert.equal(0, Math.floor(web3.utils.fromWei(currentFundingRate)))
+        
+        // t = 0, markPrice = 7000, entryPrice = 7035, funding = 0, u2.pnl = (7000 - 7035) * amount = -17
+        const positionEntryValue = await perpetualInstance.getPositionEntryValue(bob) 
+        assert.equal(3517, Math.floor(web3.utils.fromWei(positionEntryValue)))
+        const pnl = await perpetualInstance.pnl.call(bob)
+        assert.equal("-17.587939698492462313", (web3.utils.fromWei(pnl)))
+
+        // t = 600, markPrice = 7061, entryPrice = 7035, funding = 0, u2.pnl = (7061 - 7035) * amount + funding
+        await ammInstance.setBlockTimestamp((await ammInstance.mockBlockTimestamp()).toNumber() + 600);
+        
+        assert.equal(web3.utils.fromWei(await ammInstance.currentFundingRate.call()), "0.0045")
+        const currentMarkPrice2 = await ammInstance.currentMarkPrice.call()
+        assert.equal(7035, Math.floor(web3.utils.fromWei(currentMarkPrice2))) 
+        const pnl2 = await perpetualInstance.pnl.call(bob) 
+        assert.equal("-0.360841138958855613", web3.utils.fromWei(pnl2))
+        
+    })
+
+    it('user buys => price increases (below the limit) => long position pays for fundingLoss', async () => {
+
+        // set index price
+        await priceFeederInstance.updateValue(web3.utils.toWei("7000"), { from: admin });
+        await priceFeederInstance.confirmValueUpdate({ from: admin });
+        const indexPrice = await ammInstance.indexPrice();
+        assert.equal(web3.utils.fromWei(indexPrice.price), "7000");
+
+        // Approve
+        await mockTokenInstance.transfer(alice, web3.utils.toWei(`${7000 * 100 * 2.1}`), { from: admin });
+        await mockTokenInstance.transfer(bob, web3.utils.toWei(`${7000 * 3}`), { from: admin });
+        await mockTokenInstance.approve(perpetualInstance.address, infinity, { from: alice });
+        await mockTokenInstance.approve(perpetualInstance.address, infinity, { from: bob });
+
+        // create amm
+        await perpetualInstance.deposit(web3.utils.toWei(`${7000 * 100 * 2.1}`), { from: alice })
+        await ammInstance.createPool(web3.utils.toWei("100"), {
+            from: alice
+        });
+
+        await perpetualInstance.deposit(web3.utils.toWei("1000"), {
+            from: bob
+        });
+
+        // trading price = 7007
+        const buyPrice = await ammInstance.getBuyPrice.call(web3.utils.toWei("0.1"))
+        assert.equal("7007.007007007007007007",(web3.utils.fromWei(buyPrice)))  
+        await ammInstance.buy(web3.utils.toWei("0.1"), web3.utils.toWei('10000'), infinity, {
+            from: bob
+        });
+
+        const currentFairPrice = await ammInstance.currentFairPrice.call() 
+        assert.equal("7014.021028035042049056", (web3.utils.fromWei(currentFairPrice))) 
+        // now fairPrice = 7014, indexPrice = 7000
+        const currentMarkPrice = await ammInstance.currentMarkPrice.call()
+        assert.equal(7000, Math.floor(web3.utils.fromWei(currentMarkPrice))) 
+        const currentFundingRate = await ammInstance.currentFundingRate.call()
+        assert.equal(0, Math.floor(web3.utils.fromWei(currentFundingRate)))
+
+        // TODO : Check more...
 
     })
 

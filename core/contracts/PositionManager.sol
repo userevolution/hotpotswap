@@ -196,6 +196,11 @@ contract PositionManager is Lockable, Whitelist, IPositionManager {
         return positionData.entryValue;
     }
 
+    function getPositionEntryFundingLoss(address trader) public view returns (int256) {
+        Types.PositionData storage positionData = positions[trader];
+        return positionData.entryFundingLoss;
+    }
+
     function getPositionSide(address trader) public view returns (Types.Side) {
         Types.PositionData storage positionData = positions[trader];
         return positionData.side;

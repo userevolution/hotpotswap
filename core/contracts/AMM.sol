@@ -99,6 +99,21 @@ contract AMM is Lockable, Whitelist, IAMM {
         fundingState.accumulatedFundingPerContract = value;
     }
 
+    function currentFundingRate() public returns (int256) {
+        _funding();
+        return lastFundingRate();
+    }
+
+    function lastFundingRate() public view returns (int256) {
+        int256 rate = _lastPremiumRate();
+        return rate.max(fundingDampener).add(rate.min(-fundingDampener));
+    }
+
+    function updateIndex() public {
+        require(perpetual.status() == Types.Status.NORMAL, "wrong perpetual status");
+        _forceFunding();
+    }
+
     /**
      * @dev Share token's ERC20 address.
      */
@@ -149,6 +164,11 @@ contract AMM is Lockable, Whitelist, IAMM {
 
         _forceFunding(); // x, y changed, so fair price changed. we need funding now
         _mustSafe(trader, opened);
+    }
+
+    function currentFairPrice() public returns (uint256) {
+        _funding();
+        return _lastFairPrice();
     }
 
     function addLiquidity(uint256 amount) public {
@@ -341,7 +361,14 @@ contract AMM is Lockable, Whitelist, IAMM {
         emit UpdateFundingRate(fundingState);
     }
 
-    function _getBlockTimestamp() internal view returns (uint256) {
+    function _lastPremiumRate() internal view returns (int256) {
+        int256 index = fundingState.lastIndexPrice.toInt256();
+        int256 rate = _lastMarkPrice().toInt256();
+        rate = rate.sub(index).wdiv(index);
+        return rate;
+    }
+
+    function _getBlockTimestamp() virtual internal view returns (uint256) {
         // solium-disable-next-line security/no-block-members
         return block.timestamp;
     }
@@ -352,12 +379,12 @@ contract AMM is Lockable, Whitelist, IAMM {
         uint256 limitPrice,
         uint256 deadline
     )
-        private
+        internal
         returns (uint256) {
         require(perpetual.status() == Types.Status.NORMAL, "wrong perpetual status");
         require(perpetual.isValidTradingLotSize(amount), "amount must be divisible by tradingLotSize");
 
-        uint256 price = _getBuyPrice(amount);
+        uint256 price = getBuyPrice(amount);
         require(limitPrice >= price, "price limited");
         require(_getBlockTimestamp() <= deadline, "deadline exceeded");
         (uint256 opened, ) = perpetual.tradePosition(trader, _tradingAccount(), Types.Side.LONG, price, amount);
@@ -372,11 +399,11 @@ contract AMM is Lockable, Whitelist, IAMM {
         uint256 amount,
         uint256 limitPrice,
         uint256 deadline
-    ) private returns (uint256) {
+    ) internal returns (uint256) {
         require(perpetual.status() == Types.Status.NORMAL, "wrong perpetual status");
         require(perpetual.isValidTradingLotSize(amount), "amount must be divisible by tradingLotSize");
 
-        uint256 price = _getSellPrice(amount);
+        uint256 price = getSellPrice(amount);
         require(limitPrice <= price, "price limited");
         require(_getBlockTimestamp() <= deadline, "deadline exceeded");
         (uint256 opened, ) = perpetual.tradePosition(trader, _tradingAccount(), Types.Side.SHORT, price, amount);
@@ -394,7 +421,7 @@ contract AMM is Lockable, Whitelist, IAMM {
         shareToken.burn(trader, amount);
     }
 
-    function _getBuyPrice(uint256 amount) internal returns (uint256 price) {
+    function getBuyPrice(uint256 amount) public returns (uint256 price) {
         uint256 x;
         uint256 y;
         (x, y) = _currentXY();
@@ -402,12 +429,17 @@ contract AMM is Lockable, Whitelist, IAMM {
         return x.wdiv(y.sub(amount));
     }
 
-    function _getSellPrice(uint256 amount) internal returns (uint256 price) {
+    function getSellPrice(uint256 amount) public returns (uint256 price) {
         uint256 x;
         uint256 y;
         (x, y) = _currentXY();
         require(y != 0 && x != 0, "empty pool");
         return x.wdiv(y.add(amount));
+    }
+
+    function _lastFairPrice() internal view returns (uint256) {
+        Types.PositionData memory account = perpetual.positions(_tradingAccount());
+        return _fairPriceFromPoolAccount(account);
     }
 
     function _currentXY() internal returns (uint256 x, uint256 y) {
