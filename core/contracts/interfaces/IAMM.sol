@@ -10,4 +10,6 @@ interface IAMM {
 
     function currentAccumulatedFundingPerContract() external returns (int256);
 
+    function currentAvailableMargin() external returns (uint256);
+
 }

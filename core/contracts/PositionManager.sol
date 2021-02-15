@@ -67,6 +67,7 @@ contract PositionManager is Lockable, Whitelist, IPositionManager {
     event EnableWithdraw(address indexed caller);
     event EnterEmergencyStatus(uint256 price);
     event Trade(address indexed trader, Types.Side side, uint256 price, uint256 amount);
+    event Transfer(address indexed from, address indexed to, int256 amount, int256 balanceFrom, int256 balanceTo);
 
     event UpdatePositionAccount(
         address indexed trader,
@@ -185,6 +186,38 @@ contract PositionManager is Lockable, Whitelist, IPositionManager {
         return socialLossPerContracts[uint256(side)];
     }
 
+    function getPositionSize(address trader) public view returns (uint256) {
+        Types.PositionData storage positionData = positions[trader];
+        return positionData.size;
+    }
+
+    function getPositionEntryValue(address trader) public view returns (uint256) {
+        Types.PositionData storage positionData = positions[trader];
+        return positionData.entryValue;
+    }
+
+    function getPositionSide(address trader) public view returns (Types.Side) {
+        Types.PositionData storage positionData = positions[trader];
+        return positionData.side;
+    }
+
+    function positionMargin(address trader) public returns (uint256) {
+        return _marginWithPrice(trader, markPrice());
+    }
+
+    function maintenanceMargin(address trader) public returns (uint256) {
+        return _maintenanceMarginWithPrice(trader, markPrice());
+    }
+
+    function isSafe(address trader) public returns (bool) {
+        uint256 currentMarkPrice = markPrice();
+        return isSafeWithPrice(trader, currentMarkPrice);
+    }
+
+    function isBankrupt(address trader) public returns (bool) {
+        return _marginBalanceWithPrice(trader, markPrice()) < 0;
+    }
+
     function isSafeWithPrice(address trader, uint256 currentMarkPrice) public returns (bool) {
         return
             _marginBalanceWithPrice(trader, currentMarkPrice) >=
@@ -234,6 +267,14 @@ contract PositionManager is Lockable, Whitelist, IPositionManager {
         collateralCurrency.transfer(trader, collateralAmount);
     }
 
+    function pnl(address trader) public returns (int256) {
+        return _pnlWithPrice(trader, markPrice());
+    }
+
+    function availableMargin(address trader) public returns (int256) {
+        return _availableMarginWithPrice(trader, markPrice());
+    }
+
     function markPrice() public ammRequired() returns (uint256) {
         return status == Types.Status.NORMAL ? amm.currentMarkPrice() : settlementPrice;
     }
@@ -281,6 +322,29 @@ contract PositionManager is Lockable, Whitelist, IPositionManager {
 
         emit Trade(taker, side, price, amount);
         emit Trade(maker, _counterSide(side), price, amount);
+    }
+
+    function transferCollateral(
+        address from,
+        address to,
+        int256 amount
+    )
+        public
+        onlyNotPaused()
+        onlyWhitelisted()
+    {
+        require(status != Types.Status.EMERGENCY, "wrong perpetual status");
+        // MarginAccount.transferBalance(from, to, amount.toInt256());
+
+        if (amount == 0) {
+            return;
+        }
+        require(amount > 0, "amount must be greater than 0");
+        positions[from].rawCollateral = positions[from].rawCollateral.sub(amount); // may be negative balance
+        positions[to].rawCollateral = positions[to].rawCollateral.add(amount);
+
+        emit Transfer(from, to, amount, positions[from].rawCollateral, positions[to].rawCollateral);
+
     }
 
      /**

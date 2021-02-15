@@ -106,6 +106,10 @@ contract AMM is Lockable, Whitelist, IAMM {
         fundingDampener = value;
     }
 
+    function setAccumulatedFundingPerContract(int256 value) external onlyWhitelisted() {
+        fundingState.accumulatedFundingPerContract = value;
+    }
+
     /**
      * @dev Share token's ERC20 address.
      */
@@ -126,6 +130,44 @@ contract AMM is Lockable, Whitelist, IAMM {
         timestamp = priceFeeder.getTimestamp();
 
         require(price != 0, "index price error");
+    }
+
+    function createPool(uint256 amount) public {
+        require(amount > 0, "amount must be greater than zero");
+        require(perpetual.status() == Types.Status.NORMAL, "wrong perpetual status");
+        require(positionSize() == 0, "pool not empty");
+
+        address trader = msg.sender;
+        uint256 blockTime = _getBlockTimestamp();
+        uint256 newIndexPrice;
+        uint256 newIndexTimestamp;
+        (newIndexPrice, newIndexTimestamp) = indexPrice();
+
+        _initFunding(newIndexPrice, blockTime);
+        perpetual.transferCollateral(trader, _tradingAccount(), (newIndexPrice.wmul(amount).mul(2).toInt256()));
+        (uint256 opened, ) = perpetual.tradePosition(
+            trader,
+            _tradingAccount(),
+            Types.Side.SHORT,
+            newIndexPrice,
+            amount
+        );
+        _mintShareTokenTo(trader, amount);
+
+        _forceFunding(); // x, y changed, so fair price changed. we need funding now
+        _mustSafe(trader, opened);
+    }
+
+    /**
+     * @notice Pool's position size (y).
+     */
+    function positionSize() public view returns (uint256) {
+        return perpetual.positions(_tradingAccount()).size;
+    }
+
+    function currentAvailableMargin() public override returns (uint256) {
+        _funding();
+        return _lastAvailableMargin();
     }
 
     function currentMarkPrice() public override returns (uint256) {
@@ -322,6 +364,10 @@ contract AMM is Lockable, Whitelist, IAMM {
         return opened;
     }
 
+    function _mintShareTokenTo(address trader, uint256 amount) internal {
+        require(shareToken.mint(trader, amount), "mint failed");
+    }
+
     function _getBuyPrice(uint256 amount) internal returns (uint256 price) {
         uint256 x;
         uint256 y;
@@ -406,6 +452,19 @@ contract AMM is Lockable, Whitelist, IAMM {
             fundingState.accumulatedFundingPerContract.wmul(account.size.toInt256()).sub(account.entryFundingLoss)
         );
         return available.max(0).toUint256();
+    }
+
+    function _lastAvailableMargin() internal view returns (uint256) {
+        Types.PositionData memory account = perpetual.positions(_tradingAccount());
+        return _availableMarginFromPoolAccount(account);
+    }
+
+    function _initFunding(uint256 newIndexPrice, uint256 blockTime) private {
+        require(fundingState.lastFundingTime == 0, "already initialized");
+        fundingState.lastFundingTime = blockTime;
+        fundingState.lastIndexPrice = newIndexPrice;
+        fundingState.lastPremium = 0;
+        fundingState.lastEMAPremium = 0;
     }
 
     /**

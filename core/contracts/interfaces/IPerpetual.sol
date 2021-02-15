@@ -28,4 +28,6 @@ interface IPerpetual {
 
     function isSafeWithPrice(address, uint256) external view returns (bool);
 
+    function transferCollateral(address, address, int256) external;
+
 }
