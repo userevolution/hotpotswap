@@ -27,10 +27,8 @@ import {
     DropdownMenu,
     NavLink
 } from "reactstrap"
-import Landing from "./Landing/Landing"
-import Dashboard from "./Dashboard/Dashboard"
-import Burner from "./Burner/Burner"
-import Mint from "./Mint/Mint"
+import Home from "./Home/Home"
+import Trade from "./Trade/Trade"
 
 const Wrapper = styled(Container)`
     margin-top: 20px;
@@ -85,13 +83,22 @@ const Routes = () => {
     const { connector, library, chainId, account, activate, deactivate, active, error } = context
     const location = useLocation();
 
-    if (!account) {
-        return <Landing />
-    }
+    // if (!account) {
+    //     return <Landing />
+    // }
 
     return (
         <Wrapper>
-            <Tab>
+            <Switch>
+                <Route exact path="/">
+                    <Home />
+                </Route>
+                <Route path="/trade">
+                    <Trade />
+                </Route>
+                <Redirect to="/" />
+            </Switch>
+            {/* <Tab>
                 <TabItem active={location?.pathname === "/"} to="/">Dashboard</TabItem>
                 <TabItem active={location?.pathname === "/mint"} to="/mint">Mint Assets</TabItem>
                 <TabItem active={location?.pathname === "/burner"} to="/burner">Setup Burner</TabItem>
@@ -109,7 +116,7 @@ const Routes = () => {
                     </Route>
                     <Redirect to="/" />
                 </Switch>
-            </TabContent>
+            </TabContent> */}
         </Wrapper>
 
     )

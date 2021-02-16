@@ -19,7 +19,7 @@ const Card = styled(
                                 Rate
                             </h4>
                             <p>
-                                {rate.toFixed(2)}
+                                {rate.toFixed(2link)}
                             </p> 
                         </div>
                         <div>

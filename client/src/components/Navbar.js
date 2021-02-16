@@ -52,17 +52,17 @@ import {
 const Brand = styled.img.attrs(props => ({
     src: LogoPNG
 }))`
-    height: 55px; 
+    height: 35px; 
 `
 
 const Wrapper = styled(Navbar)`
-    min-height: 70px; 
+    min-height: 80px; 
 
     a {
         color: inherit;
         cursor: pointer; 
         margin-left: 5px;
-        margin-right: 5px;
+        margin-right: 5px; 
 
         :first-child {
             margin-left: 0px;
@@ -201,21 +201,21 @@ const Main = () => {
                     <NavbarToggler onClick={toggle} />
                     <Collapse isOpen={isOpen} navbar>
                         <Nav className="ml-auto" navbar>
-                            {/* <NavItem>
+                            <NavItem>
                                 <NavLink>
-                                    <Link to="/">Home</Link>
+                                    <Link  to="/trade">Trade</Link>
                                 </NavLink>
-                            </NavItem> */}
+                            </NavItem>
                             <NavItem>
                                 <NavLink>
                                     <Link  to="/#about">How To Start</Link>
                                 </NavLink>
-                            </NavItem>
-                            {/* <NavItem>
+                            </NavItem> 
+                            <NavItem>
                                 <NavLink>
-                                    <Link to="/rules">Rules</Link>
+                                    <Link to="/rules">GitHub</Link>
                                 </NavLink>
-                            </NavItem> */}
+                            </NavItem>
                             {!account
                                 ?
                                 <Button color="warning" onClick={toggleModal}>
