@@ -24,6 +24,12 @@ contract('AMM', accounts => {
     let ammInstance
     let priceFeederInstance 
 
+    const increaseBlockBy = async (n) => {
+        for (let i = 0; i < n; i++) {
+            await increaseEvmBlock();
+        }
+    };
+
     const deploy = async () => {
         const { tokenFactoryAddress, mockTokenAddress, priceFeederAddress } = await setupSystem(accounts)
 
@@ -172,7 +178,7 @@ contract('AMM', accounts => {
 
     })
 
-    it('can open short/long position ', async () => {
+    it('open a buy/long position ', async () => {
 
         // set index price
         await priceFeederInstance.updateValue(web3.utils.toWei("7000"), { from: admin });
@@ -183,10 +189,10 @@ contract('AMM', accounts => {
         // Approve
         await mockTokenInstance.transfer(alice, web3.utils.toWei(`${7000 * 10 * 2.1}`), { from: admin });
         await mockTokenInstance.transfer(bob, web3.utils.toWei(`${7000 * 3}`), { from: admin });
-        await mockTokenInstance.transfer(charlie, web3.utils.toWei(`${7000 * 3}`), { from: admin });
         await mockTokenInstance.approve(perpetualInstance.address, infinity, { from: alice });
         await mockTokenInstance.approve(perpetualInstance.address, infinity, { from: bob });
-        await mockTokenInstance.approve(perpetualInstance.address, infinity, { from: charlie });
+
+        await increaseBlockBy(4);
 
         // create amm
         await perpetualInstance.deposit(web3.utils.toWei(`${7000 * 10 * 2.1}`), { from: alice })
@@ -196,6 +202,23 @@ contract('AMM', accounts => {
 
         const shareTokenAddress = await ammInstance.shareTokenAddress()
         const shareTokenInstance = await MockToken.at(shareTokenAddress)
+
+        // buy 1, entryPrice will be 70000 / (10 - 1) = 7777 but markPrice is still 7000
+        // pnl = -777, positionMargin = 700
+        await perpetualInstance.deposit(web3.utils.toWei(`${7000 * 1}`), {
+            from: bob
+        });
+        await ammInstance.buy(web3.utils.toWei("1") , web3.utils.toWei("10000") , infinity, {
+            from: bob
+        });
+
+        assert.equal(web3.utils.fromWei(await ammInstance.positionSize()), "9")
+        assert.equal(web3.utils.fromWei(await perpetualInstance.getPositionSize(perpetualInstance.address)), "9")
+        assert.equal(web3.utils.fromWei(await perpetualInstance.getPositionSize(alice)), "10")
+        assert.equal(web3.utils.fromWei(await perpetualInstance.getPositionSize(bob)), "1")
+        assert.equal(await perpetualInstance.getPositionSide(perpetualInstance.address), Side.LONG)
+        assert.equal(await perpetualInstance.getPositionSide(alice), Side.SHORT)
+        assert.equal(await perpetualInstance.getPositionSide(bob), Side.LONG)
 
         // add and remove liquidity - no position on removing liqudity
         await perpetualInstance.deposit(web3.utils.toWei(`${7000 * 3}`), {

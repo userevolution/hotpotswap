@@ -8,8 +8,11 @@ contract PriceFeeder is Whitelist, IPriceFeeder {
     uint256 public value = 100000; // wad
     uint256 public newValue = 100000; // wad
     uint256 private timestamp;
+    
+    string public name;
 
-    constructor() public {
+    constructor(string memory _name) public {
+        name = _name;
         timestamp = now;
         addAddress(msg.sender);
     }
