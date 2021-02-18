@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useContext } from 'react';
 import styled from "styled-components"
 import { Alert, Container, Jumbotron, Row, Col, Button, InputGroup, InputGroupAddon, InputGroupText, Input } from "reactstrap"
 import { Search } from "react-feather"
@@ -6,6 +6,7 @@ import { useHistory } from "react-router-dom";
 import FlagHK from "../../assets/img/flag-hkg.png"
 import FlagUS from "../../assets/img/flag-us.png"
 import FlagJP from "../../assets/img/flag-jp.png"
+import { ContractsContext } from "../../hooks/useContracts"
 
 const Wrapper = styled(Container)`
      
@@ -31,7 +32,7 @@ const Headline = styled(
                 <div>
                     <h3>Live the Live Market</h3>
                     <p>
-                        Introducing Hotpotswap, a synthetic asset protocol where BUSD is the underlying collateral for mint tokens that track the Stock Market Indexes.
+                    Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam
                     </p>
                 </div>
             </div>
@@ -52,6 +53,7 @@ const TokenList = styled(
     ({ className }) => {
 
         let history = useHistory()
+        const { djiPerpetual, collateralToken } = useContext(ContractsContext)
 
         const toTrading = () => {
             history.push("/trade")
@@ -63,24 +65,24 @@ const TokenList = styled(
                     <div>
                         <img src={FlagUS} alt={`icon-1`} />
                     </div>
-                    <div style={{minWidth : 200}}>
+                    <div style={{ minWidth: 200 }}>
                         <h5>Perpetual Name</h5>
                         <p>Dow Jones Index</p>
                     </div>
-                    <div style={{minWidth : 160}}>
+                    <div style={{ minWidth: 160 }}>
                         <h5>Status</h5>
-                        <p>Active</p>
+                        <p>{djiPerpetual.status}</p>
                     </div>
 
                     <div>
                         <h5>Index Price</h5>
-                        <p>$7220.00</p>
+                        <p>{djiPerpetual.indexPrice}{` `}{collateralToken.symbol}</p>
                     </div>
                     <div>
                         <h5>Mark Price</h5>
-                        <p>$6440.00</p>
+                        <p>{djiPerpetual.markPrice}{` `}{collateralToken.symbol}</p>
                     </div>
-                    <div style={{marginTop: 24}}>
+                    <div style={{ marginTop: 24 }}>
                         <u>Trade Now</u>
                     </div>
                 </div>
@@ -88,11 +90,11 @@ const TokenList = styled(
                     <div>
                         <img src={FlagHK} alt={`icon-2`} />
                     </div>
-                    <div style={{minWidth : 200}}>
+                    <div style={{ minWidth: 200 }}>
                         <h5>Perpetual Name</h5>
                         <p>Hang Seng Index</p>
                     </div>
-                    <div style={{minWidth : 160}}>
+                    <div style={{ minWidth: 160 }}>
                         <h5>Status</h5>
                         <p>Coming Soon</p>
                     </div>
@@ -102,11 +104,11 @@ const TokenList = styled(
                     <div>
                         <img src={FlagJP} alt={`icon-3`} />
                     </div>
-                    <div style={{minWidth : 200}}>
+                    <div style={{ minWidth: 200 }}>
                         <h5>Perpetual Name</h5>
                         <p>Nikkei 225 Index</p>
                     </div>
-                    <div style={{minWidth : 160}}>
+                    <div style={{ minWidth: 160 }}>
                         <h5>Status</h5>
                         <p>Coming Soon</p>
                     </div>

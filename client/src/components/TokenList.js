@@ -2,7 +2,7 @@ import React, { useState, useCallback, useEffect } from 'react';
 import styled from "styled-components"
 import { Row, Col } from "reactstrap"
 import { ethers } from "ethers"
-import { BSC_NODE } from "../constants"
+import {  } from "../constants"
 
 const Container = styled.div`
     
@@ -33,7 +33,7 @@ const TokenList = ({ title }) => {
 
         (async () => {
 
-            const provider = new ethers.providers.JsonRpcProvider(BSC_NODE)
+            const provider = new ethers.providers.JsonRpcProvider()
             const blockNumber = await provider.getBlockNumber()
             console.log("blockNumber --> ", blockNumber)
 

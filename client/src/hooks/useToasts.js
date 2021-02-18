@@ -30,14 +30,22 @@ const Toast = ({ title, children, onDismiss }) => {
 
 let toastCount = 0;
 
-export function ToastProvider({ children }) {
+function ToastProvider({ children }) {
   const [toasts, setToasts] = React.useState([]);
 
-  const add = ({title , content}) => {
+  const add = ({ title, content }) => {
     const id = toastCount++;
     const toast = { title, content, id };
     setToasts([...toasts, toast]);
+    return id
   };
+
+  const update = ({id , title, content}) => {
+    const toast = { title, content, id };
+    setToasts([...toasts, toast]);
+    return id
+  }
+
   const remove = id => {
     const newToasts = toasts.filter(t => t.id !== id);
     setToasts(newToasts);
@@ -46,18 +54,20 @@ export function ToastProvider({ children }) {
   const onDismiss = id => () => remove(id);
 
   return (
-    <Ctx.Provider value={{ add, remove }}>
+    <Ctx.Provider value={{ add, remove, update }}>
       {children}
       <ToastContainer>
         {toasts.map(({ title, content, id, ...rest }) => (
           <Toast key={id} title={title} Toast={Toast} onDismiss={onDismiss(id)} {...rest}>
-            {id + 1} &mdash; {content}
+            {content}
           </Toast>
         ))}
       </ToastContainer>
     </Ctx.Provider>
   );
 }
+
+export default ToastProvider;
 
 // Consumer
 // ==============================

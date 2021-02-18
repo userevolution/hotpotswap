@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import styled from "styled-components"
 import {
     Dropdown,
@@ -43,6 +43,7 @@ import LogoPNG from "../assets/img/logo.png"
 import MetamaskSVG from "../assets/img/metamask.svg"
 import useEagerConnect from "../hooks/useEagerConnect"
 import useInactiveListener from "../hooks/useInactiveListener"
+import { useToasts } from "../hooks/useToasts"
 import { shortAddress } from "../utils"
 
 import {
@@ -138,6 +139,8 @@ const Main = () => {
     const [isOpen, setOpen] = useState(false);
     const [loginModal, setLoginModal] = useState(false);
     const context = useWeb3React()
+    const { add } = useToasts()
+    const [locked, setLocked] = useState(false)
     const { connector, library, chainId, account, activate, deactivate, active, error } = context
 
     // handle logic to recognize the connector currently being activated
@@ -156,6 +159,17 @@ const Main = () => {
     const toggleModal = useCallback(() => {
         setLoginModal(!loginModal)
     }, [loginModal])
+
+
+    useEffect(() => {
+        if (error && error.name === "UnsupportedChainIdError" && !locked) {
+            setLocked(true)
+            add({
+                title: "Unsupported Network",
+                content: <div>Please switch to BSC Mainnet or Kovan network</div>
+            })
+        }
+    }, [error, locked])
 
     return (
         <>
@@ -197,20 +211,23 @@ const Main = () => {
                         <Link to="/">
                             <Brand />
                         </Link>
+                        {chainId === 56 && (<Badge size="sm" color="info">BSC</Badge>)}
+                        {chainId === 42 && (<Badge size="sm" color="warning">Kovan</Badge>)}
+                        {chainId === 1337 && (<Badge size="sm" color="dark">Dev</Badge>)}
                     </NavbarBrand>
                     <NavbarToggler onClick={toggle} />
                     <Collapse isOpen={isOpen} navbar>
                         <Nav className="ml-auto" navbar>
                             <NavItem>
                                 <NavLink>
-                                    <Link  to="/trade">Trade</Link>
+                                    <Link to="/trade">Trade</Link>
                                 </NavLink>
                             </NavItem>
                             <NavItem>
                                 <NavLink>
-                                    <Link  to="/#about">How To Start</Link>
+                                    <Link to="/#about">How To Start</Link>
                                 </NavLink>
-                            </NavItem> 
+                            </NavItem>
                             <NavItem>
                                 <NavLink>
                                     <Link to="/rules">GitHub</Link>

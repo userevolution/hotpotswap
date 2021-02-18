@@ -1,11 +1,12 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useContext } from 'react';
 import styled from "styled-components"
 import { Alert, Container, Jumbotron, Row, Col, Button, InputGroup, InputGroupAddon, InputGroupText, Input } from "reactstrap"
 import TradingViewWidget from 'react-tradingview-widget';
 import Position from "./Position"
 import LiquidityPanel from "./LiquidityPanel"
 import TradePanel from "./TradePanel"
-
+import { ContractsContext } from "../../hooks/useContracts"
+import { Slider } from "../common"
 const Wrapper = styled.div` 
 
     h2 {
@@ -70,6 +71,7 @@ const TabContent = styled.div`
     padding: 6px 12px;
     border: 1px solid black;
     border-top: none; 
+    background: white;
 `
 
 const Stats = styled(Row)`
@@ -97,6 +99,8 @@ const Trade = () => {
 
     const [panel, setPanel] = useState(0) // 0 - Trade , 1 - Liquidity
 
+    const { djiPerpetual, collateralToken } = useContext(ContractsContext)
+
     return (
         <Wrapper>
             <h2>
@@ -110,33 +114,37 @@ const Trade = () => {
             <Stats>
                 <StatItem>
                     <h4>
-                        Collateral
+                        Status
                     </h4>
-                    <p>BUSD</p>
+                    <p>{djiPerpetual.status}</p>
                 </StatItem>
                 <StatItem>
                     <h4>
                         Index Price
                     </h4>
-                    <p>12233.40 BUSD</p>
+                    <p>{djiPerpetual.indexPrice}{` `}{collateralToken.symbol}</p>
                 </StatItem>
                 <StatItem>
                     <h4>
                         Mark Price
                     </h4>
-                    <p>12233.40 BUSD</p>
+                    <p>{djiPerpetual.markPrice}{` `}{collateralToken.symbol}</p>
+                </StatItem>
+                <StatItem>
+                    <h4>
+                        Available Margin
+                    </h4>
+                    <p>{djiPerpetual.availableMargin}{` `}{collateralToken.symbol}</p>
                 </StatItem>
                 <StatItem xs="4">
                     <h4>
                         Accumulated Funding / 8hrs.
                     </h4>
-                    <p>+0.12334 BUSD</p>
+                    <p>{Number(djiPerpetual.accumulatedFunding) >= 0 ? "+" : "-"}{djiPerpetual.accumulatedFunding}{` `}{collateralToken.symbol}</p>
                 </StatItem>
-
             </Stats>
             <Row>
                 <StyledCol xs="4">
-
                     <Tab>
                         <TabItem active={panel === 0} onClick={() => setPanel(0)}>Trade</TabItem>
                         <TabItem active={panel === 1} onClick={() => setPanel(1)} >Liquidity</TabItem>
@@ -145,7 +153,6 @@ const Trade = () => {
                         {panel === 0 && <TradePanel />}
                         {panel === 1 && <LiquidityPanel />}
                     </TabContent>
-
                 </StyledCol>
                 <StyledCol xs="8">
                     <TradingViewContainer>
