@@ -6,7 +6,8 @@
         "ganache-cli": "^6.12.1"
     },
     "scripts": {
-        "test": "truffle test"
+        "test": "truffle test",
+        "ganache": "ganache-cli --mnemonic $(grep MNEMONIC .env | cut -d '=' -f2)"
     },
     "dependencies": {
         "replace-in-file": "^6.1.0",
