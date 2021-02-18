@@ -54,6 +54,7 @@ contract AMM is Lockable, Whitelist, IAMM {
     
     event CreatedAMM();
     event UpdateFundingRate(Types.FundingState fundingState);
+    event UpdatePriceFeeder(address indexed priceFeeder);
 
     constructor(
         string memory _poolName,
@@ -71,6 +72,12 @@ contract AMM is Lockable, Whitelist, IAMM {
         addAddress(msg.sender);
 
         emit CreatedAMM();
+    }
+
+    function setPriceFeeder(address _priceFeederAddress) external onlyWhitelisted() {
+        priceFeeder = IPriceFeeder(_priceFeederAddress);
+
+         emit UpdatePriceFeeder(_priceFeederAddress);
     }
 
     function setUpdatePremiumPrize(uint256 value) external onlyWhitelisted() {
@@ -122,7 +129,7 @@ contract AMM is Lockable, Whitelist, IAMM {
     }
 
     /**
-     * @dev Read the price
+     * @dev Read the price from Oracle
      */
     function indexPrice()
         public
@@ -166,10 +173,7 @@ contract AMM is Lockable, Whitelist, IAMM {
         _mustSafe(trader, opened);
     }
 
-    function currentFairPrice() public returns (uint256) {
-        _funding();
-        return _lastFairPrice();
-    }
+    
 
     function addLiquidity(uint256 amount) public {
         require(perpetual.status() == Types.Status.NORMAL, "wrong perpetual status");
@@ -227,9 +231,26 @@ contract AMM is Lockable, Whitelist, IAMM {
         return _lastAvailableMargin();
     }
 
+    function getAvailableMargin() public view returns (uint256) {
+        return _lastAvailableMargin();
+    }
+
+    function currentFairPrice() public returns (uint256) {
+        _funding();
+        return _lastFairPrice();
+    }
+
     function currentMarkPrice() public override returns (uint256) {
         _funding();
         return _lastMarkPrice();
+    }
+
+    function getMarkPrice() public view returns (uint256) {
+        return _lastMarkPrice();
+    }
+
+    function getFairPrice() public view returns (uint256) {
+        return _lastFairPrice();
     }
 
     function lastFundingState() public view returns (Types.FundingState memory) {
@@ -238,6 +259,10 @@ contract AMM is Lockable, Whitelist, IAMM {
 
     function currentAccumulatedFundingPerContract() public override returns (int256) {
         _funding();
+        return fundingState.accumulatedFundingPerContract;
+    }
+
+    function getAccumulatedFundingPerContract() public view returns (int256) {
         return fundingState.accumulatedFundingPerContract;
     }
 
