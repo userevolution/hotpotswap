@@ -22,8 +22,13 @@ module.exports = async (deployer, network, accounts) => {
         // create a pool
         await token.approve( perpetual.address , '9999999999999999999999999999', {from :admin})
 
-        await perpetual.deposit(web3.utils.toWei("700"), { from: admin })
-        await amm.createPool(web3.utils.toWei("0.01"), {
+        // await perpetual.deposit(web3.utils.toWei("700"), { from: admin })
+        // await amm.createPool(web3.utils.toWei("0.01"), {
+        //     from: admin
+        // });
+
+        await perpetual.deposit(web3.utils.toWei("7000"), { from: admin })
+        await amm.createPool(web3.utils.toWei("0.1"), {
             from: admin
         });
 
