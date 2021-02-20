@@ -147,7 +147,7 @@ const TradePanel = ({ setDepositModal, isMainnet, onFaucet }) => {
             await tx.wait()
             update({
                 id,
-                ...processingToast("Buying Completed", "Your transaction is completed", false, tx.hash, chainId)
+                ...processingToast("Completed", "Your transaction is completed", false, tx.hash, chainId)
             })
             increaseTick()
         } catch (e) {
@@ -165,7 +165,7 @@ const TradePanel = ({ setDepositModal, isMainnet, onFaucet }) => {
             await tx.wait()
             update({
                 id,
-                ...processingToast("Selling Completed", "Your transaction is completed", false, tx.hash, chainId)
+                ...processingToast("Completed", "Your transaction is completed", false, tx.hash, chainId)
             })
             increaseTick()
         } catch (e) {
@@ -209,14 +209,14 @@ const TradePanel = ({ setDepositModal, isMainnet, onFaucet }) => {
                                     </Button>
                                 </td>
                             </tr>
-                            <tr>
+                            {/* <tr>
                                 <th scope="row">
                                     <div>Leverage</div>
                                 </th>
                                 <td>
                                     0.0x
                                 </td>
-                            </tr>
+                            </tr> */}
                         </tbody>
                     </Table>
                 </div>
@@ -278,14 +278,14 @@ const TradePanel = ({ setDepositModal, isMainnet, onFaucet }) => {
                                             {(amount * buyPrice).toLocaleString()}
                                         </td>
                                     </tr>
-                                    <tr>
+                                    {/* <tr>
                                         <th scope="row">
                                             <div>Leverage</div>
                                         </th>
                                         <td>
                                             {Number(leverage).toLocaleString()}x
                                         </td>
-                                    </tr>
+                                    </tr> */}
                                 </tbody>
                             </Table>
                         </div>
@@ -342,14 +342,14 @@ const TradePanel = ({ setDepositModal, isMainnet, onFaucet }) => {
                                             {(amount * sellPrice).toLocaleString()}
                                         </td>
                                     </tr>
-                                    <tr>
+                                    {/* <tr>
                                         <th scope="row">
                                             <div>Leverage</div>
                                         </th>
                                         <td>
                                             {Number(leverage).toLocaleString()}x
                                         </td>
-                                    </tr>
+                                    </tr> */}
                                 </tbody>
                             </Table>
                         </div>

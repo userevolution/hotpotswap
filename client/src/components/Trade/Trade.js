@@ -188,7 +188,7 @@ const Trade = () => {
                     <StatItem>
                         <h4>
                             Available Margin
-                    </h4>
+                        </h4>
                         <p>{Number(djiPerpetual.availableMargin).toLocaleString()}{` `}{collateralToken.symbol}</p>
                     </StatItem>
                     <StatItem xs="4">
