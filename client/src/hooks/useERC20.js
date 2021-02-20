@@ -16,6 +16,8 @@ export const useERC20 = (chainId, account, library, tick) => {
         case 42:
             address = CONTRACTS.KOVAN.COLLATERAL_TOKEN
             break
+        default:
+            address = chainId
     }
 
     const erc20Contract = useMemo(() => {

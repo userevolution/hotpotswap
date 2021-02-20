@@ -446,7 +446,7 @@ contract AMM is Lockable, Whitelist, IAMM {
         shareToken.burn(trader, amount);
     }
 
-    function getBuyPrice(uint256 amount) public returns (uint256 price) {
+    function getBuyPrice(uint256 amount) internal returns (uint256 price) {
         uint256 x;
         uint256 y;
         (x, y) = _currentXY();
@@ -454,12 +454,36 @@ contract AMM is Lockable, Whitelist, IAMM {
         return x.wdiv(y.sub(amount));
     }
 
-    function getSellPrice(uint256 amount) public returns (uint256 price) {
+    function getBuyPricePublic(uint256 amount) public view returns (uint256) {
+        uint256 x;
+        uint256 y;
+        (x, y) = _currentXYNoFunding();
+        require(y != 0 && x != 0, "empty pool");
+        return x.wdiv(y.sub(amount));
+    }
+
+    function getSellPrice(uint256 amount) internal returns (uint256 price) {
         uint256 x;
         uint256 y;
         (x, y) = _currentXY();
         require(y != 0 && x != 0, "empty pool");
         return x.wdiv(y.add(amount));
+    }
+
+    function getSellPricePublic(uint256 amount) public view returns (uint256) {
+        uint256 x;
+        uint256 y;
+        (x, y) = _currentXYNoFunding();
+        require(y != 0 && x != 0, "empty pool");
+        return x.wdiv(y.add(amount));
+    }
+
+    function getCurrentPricePublic() public view returns (uint256) {
+        uint256 x;
+        uint256 y;
+        (x, y) = _currentXYNoFunding();
+        require(y != 0 && x != 0, "empty pool");
+        return x.wdiv(y);
     }
 
     function _lastFairPrice() internal view returns (uint256) {
@@ -469,6 +493,12 @@ contract AMM is Lockable, Whitelist, IAMM {
 
     function _currentXY() internal returns (uint256 x, uint256 y) {
         _funding();
+        Types.PositionData memory account = perpetual.positions(_tradingAccount());
+        x = _availableMarginFromPoolAccount(account);
+        y = account.size;
+    }
+
+    function _currentXYNoFunding() internal view returns (uint256 x, uint256 y) {
         Types.PositionData memory account = perpetual.positions(_tradingAccount());
         x = _availableMarginFromPoolAccount(account);
         y = account.size;

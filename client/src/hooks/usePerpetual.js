@@ -2,6 +2,7 @@ import { useMemo, useEffect, useState, useCallback } from "react";
 import { ethers } from "ethers";
 import Perpetual from "../abi/Perpetual.json"
 import AMM from "../abi/AMM.json"
+import { useERC20 } from "./useERC20"
 
 export const usePerpetual = (perpetualAddress, ammAddress, account, library, tick) => {
 
@@ -16,17 +17,20 @@ export const usePerpetual = (perpetualAddress, ammAddress, account, library, tic
 
         return {
             perpetualContract: new ethers.Contract(perpetualAddress, Perpetual.abi, library.getSigner()),
-            ammContract: new ethers.Contract(ammAddress, AMM.abi, library.getSigner())
+            ammContract : new ethers.Contract(ammAddress, AMM.abi, library.getSigner())
         }
 
     }, [account, perpetualAddress, ammAddress, library])
 
+    const [shareTokenAddress, setShareTokenAddress] = useState()
     const [indexPrice, setIndexPrice] = useState("--")
     const [markPrice, setMarkPrice] = useState("--")
     const [availableMargin, setAvailableMargin] = useState("--")
     const [status, setStatus] = useState("--")
-    const [accumulatedFunding, setAccumulatedFunding ] = useState("--")
-    const [myDeposit, setMyDeposit ] = useState("0")
+    const [accumulatedFunding, setAccumulatedFunding] = useState("--")
+    const [myDeposit, setMyDeposit] = useState("0")
+
+    const shareToken = useERC20(shareTokenAddress, account, library, tick)
 
     const getStatus = useCallback(
         async () => {
@@ -49,6 +53,15 @@ export const usePerpetual = (perpetualAddress, ammAddress, account, library, tic
 
         [perpetualContract, account]
     );
+
+    const getShareTokenAddress = useCallback( async () => {
+        try {
+            return await ammContract.shareTokenAddress()
+        } catch (e) {
+            return null
+        }
+
+    },[ammContract, account])
 
     const getIndexPrice = useCallback(
         async () => {
@@ -102,7 +115,17 @@ export const usePerpetual = (perpetualAddress, ammAddress, account, library, tic
         [ammContract, account]
     );
 
-    const deposit =  useCallback(
+    const getBuyPrice = useCallback(async (amount) => {
+        const result = await ammContract.getBuyPricePublic(ethers.utils.parseEther(`${amount}`))
+        return ethers.utils.formatEther(result)
+    }, [ammContract, account])
+
+    const getSellPrice = useCallback(async (amount) => {
+        const result = await ammContract.getSellPricePublic(ethers.utils.parseEther(`${amount}`))
+        return ethers.utils.formatEther(result)
+    }, [ammContract, account])
+
+    const deposit = useCallback(
         async (amount) => {
             return await perpetualContract.deposit(
                 ethers.utils.parseEther(amount)
@@ -121,10 +144,43 @@ export const usePerpetual = (perpetualAddress, ammAddress, account, library, tic
         [perpetualContract, account]
     );
 
-    const getDeposit = useCallback( async () => {
+    const getDeposit = useCallback(async () => {
         const result = await perpetualContract.totalRawCollateral(account)
         return ethers.utils.formatEther(result)
-    },[account])
+    }, [perpetualContract, account])
+
+    const getDeadline = () => {
+        return ((new Date().valueOf() / 1000) + 86400)
+    }
+
+    const getCurrentPrice = useCallback(async () => {
+        const result = await ammContract.getCurrentPricePublic()
+        return ethers.utils.formatEther(result)
+    }, [ammContract, account])
+
+    const buy = useCallback(async (amount) => {
+        // TODO : increase gas price
+        await ammContract.buy(ethers.utils.parseEther(`${amount}`), ethers.utils.parseEther(`50000`), 9999999999999)
+    }, [ammContract, account])
+
+    const sell = useCallback(async (amount) => {
+        // TODO : increase gas price
+        await ammContract.sell(ethers.utils.parseEther(`${amount}`), 0, 9999999999999)
+    }, [ammContract, account])
+
+    const addLiquidity = useCallback(async (amount) => {
+        // TODO : increase gas price
+        await ammContract.addLiquidity(ethers.utils.parseEther(`${amount}`), { 
+            // gasPrice: 50000000000,
+            // gasLimit: 10000000
+        })
+    }, [ammContract, account])
+
+    const removeLiquidity = useCallback(async (lpAmount) => {
+        // TODO : increase gas price
+        await ammContract.removeLiquidity(ethers.utils.parseEther(`${lpAmount}`))
+    }, [ammContract, account])
+
 
     useEffect(() => {
 
@@ -134,6 +190,7 @@ export const usePerpetual = (perpetualAddress, ammAddress, account, library, tic
         ammContract && getAccumulatedFunding().then(setAccumulatedFunding)
         perpetualContract && getStatus().then(setStatus)
         perpetualContract && getDeposit().then(setMyDeposit)
+        ammContract && getShareTokenAddress().then(setShareTokenAddress)
 
     }, [account, ammContract, perpetualContract, tick])
 
@@ -147,7 +204,15 @@ export const usePerpetual = (perpetualAddress, ammAddress, account, library, tic
         accumulatedFunding,
         deposit,
         withdraw,
-        myDeposit
+        myDeposit,
+        getBuyPrice,
+        getSellPrice,
+        getCurrentPrice,
+        buy,
+        sell,
+        addLiquidity,
+        removeLiquidity,
+        shareToken
     }
 
 }
