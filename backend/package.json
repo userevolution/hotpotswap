@@ -1,0 +1,15 @@
+{
+    "name": "hotpotswap-bot",
+    "main": "index.js",
+    "dependencies": {
+        "@pulumi/aws": "^3.25.1",
+        "@pulumi/awsx": "^0.24.0",
+        "@pulumi/pulumi": "^2.0.0",
+        "@truffle/hdwallet-provider": "^1.2.2",
+        "axios": "^0.21.1",
+        "ethers": "^5.0.31"
+    },
+    "scripts": {
+        "test": "node ./tests/index.js"
+    }
+}

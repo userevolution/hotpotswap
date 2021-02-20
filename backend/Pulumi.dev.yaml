@@ -1,0 +1,8 @@
+config:
+  aws:region: ap-southeast-1
+  hotpotswap-bot:privateKey: ""
+  hotpotswap-bot:traderMadeApiKey: ""
+  hotpotswap-bot:kovanAddress: ""
+  hotpotswap-bot:kovanRpcUrl: ""
+  hotpotswap-bot:bscTestnetAddress: ""
+  hotpotswap-bot:bscTestnetRpcUrl: ""
