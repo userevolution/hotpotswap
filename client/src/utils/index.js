@@ -14,7 +14,7 @@ export const processingToast = (title = "Processing", subtitle = "Transaction is
 
     if (chainId === 42) {
         suffix = "kovan.etherscan.io"
-    } else if (chainId === 96) {
+    } else if (chainId === 97) {
         suffix = "testnet.bscscan.com"
     }
 

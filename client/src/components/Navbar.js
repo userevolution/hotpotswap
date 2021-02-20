@@ -171,6 +171,8 @@ const Main = () => {
         }
     }, [error, locked])
 
+    console.log("chainId --> ", chainId)
+
     return (
         <>
             <Modal isOpen={loginModal} toggle={toggleModal}>
@@ -212,6 +214,7 @@ const Main = () => {
                             <Brand />
                         </Link>
                         {chainId === 56 && (<Badge size="sm" color="info">BSC</Badge>)}
+                        {chainId === 97 && (<Badge size="sm" color="secondary">BSC Testnet</Badge>)}
                         {chainId === 42 && (<Badge size="sm" color="warning">Kovan</Badge>)}
                         {chainId === 1337 && (<Badge size="sm" color="dark">Dev</Badge>)}
                     </NavbarBrand>
