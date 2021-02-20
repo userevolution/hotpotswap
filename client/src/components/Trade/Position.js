@@ -78,7 +78,7 @@ const Position = () => {
                             <tr>
                                 <th>Side</th>
                                 <th>Position Size</th>
-                                <th>Total Collaral</th>
+                                <th>Total Collateral</th>
                                 <th>Entry Price</th>
                                 <th>Profit</th>
                                 <th></th>
