@@ -27,7 +27,8 @@ import {
     ModalBody,
     ModalFooter,
 } from "reactstrap"
-import { Plus } from "react-feather"
+import { Plus, DollarSign } from "react-feather"
+import { useWeb3React } from '@web3-react/core'
 import classnames from 'classnames';
 import useInterval from "../../hooks/useInterval"
 import { Slider } from "../common"
@@ -70,16 +71,21 @@ const Error = ({ errorMessage }) => {
     )
 }
 
-const TradePanel = ({ setDepositModal }) => {
+const TradePanel = ({ setDepositModal, isMainnet, onFaucet }) => {
+
+    const { chainId } = useWeb3React()
 
     const [side, setSide] = useState(0) // 0 - long, 1 - short
-    
+
     const [amount, setAmount] = useState(0.001)
     const [errorMessage, setErrorMessage] = useState()
 
-    const { collateralToken, djiPerpetual } = useContext(ContractsContext)
+    const { collateralToken, djiPerpetual, increaseTick } = useContext(ContractsContext)
     const [buyPrice, setBuyPrice] = useState(0)
     const [sellPrice, setSellPrice] = useState(0)
+    const [leverage, setLeverage] = useState(0)
+
+    const { add, update } = useToasts()
 
     useInterval(() => {
 
@@ -88,9 +94,11 @@ const TradePanel = ({ setDepositModal }) => {
             (async () => {
 
                 let errorCount = 0
+                let buyPrice = 1
+                let sellPrice = 1
 
                 try {
-                    const buyPrice = await djiPerpetual.getBuyPrice(amount)
+                    buyPrice = await djiPerpetual.getBuyPrice(amount)
                     setBuyPrice(Number(buyPrice))
                 } catch (e) {
                     errorCount += 1
@@ -98,7 +106,7 @@ const TradePanel = ({ setDepositModal }) => {
                 }
 
                 try {
-                    const sellPrice = await djiPerpetual.getSellPrice(amount)
+                    sellPrice = await djiPerpetual.getSellPrice(amount)
                     setSellPrice(Number(sellPrice))
                 } catch (e) {
                     errorCount += 1
@@ -109,13 +117,23 @@ const TradePanel = ({ setDepositModal }) => {
                     setErrorMessage()
                 }
 
+                if (side === 0) {
+                    const leverage = Number(djiPerpetual.markPrice) / Number(buyPrice)
+                    setLeverage(leverage)
+                }
+
+                if (side === 1) {
+                    const leverage = 1 / (Number(djiPerpetual.markPrice) / Number(sellPrice))
+                    setLeverage(leverage)
+                }
+
             })()
 
         }
 
     }, 3000)
 
-    
+
 
     const handleChange = (e) => {
         setAmount(Number(e.target.value))
@@ -123,15 +141,39 @@ const TradePanel = ({ setDepositModal }) => {
 
     const onBuy = useCallback(async () => {
 
-        await djiPerpetual.buy(amount)
+        const tx = await djiPerpetual.buy(amount)
+        const id = add(processingToast("Buying", "Your transaction is being processed", true, tx.hash, chainId))
+        try {
+            await tx.wait()
+            update({
+                id,
+                ...processingToast("Buying Completed", "Your transaction is completed", false, tx.hash, chainId)
+            })
+            increaseTick()
+        } catch (e) {
+            alert("out of gas error - please try again")
+        }
 
-    }, [djiPerpetual, amount])
+
+    }, [djiPerpetual, amount, chainId])
 
     const onSell = useCallback(async () => {
 
-        await djiPerpetual.sell(amount)
+        const tx = await djiPerpetual.sell(amount)
+        const id = add(processingToast("Selling", "Your transaction is being processed", true, tx.hash, chainId))
+        try {
+            await tx.wait()
+            update({
+                id,
+                ...processingToast("Selling Completed", "Your transaction is completed", false, tx.hash, chainId)
+            })
+            increaseTick()
+        } catch (e) {
+            alert("out of gas error - please try again")
+        }
 
-    }, [djiPerpetual, amount])
+
+    }, [djiPerpetual, amount, chainId])
 
     return (
         <>
@@ -144,10 +186,16 @@ const TradePanel = ({ setDepositModal }) => {
                         <tbody>
                             <tr>
                                 <th scope="row">
-                                    <div>Your Balance</div>
+                                    <div style={{ marginTop: 3 }}>Your Balance</div>
                                 </th>
-                                <td>
-                                    {collateralToken.balance}{` `}{collateralToken.symbol}
+                                <td style={{ display: "flex", flexDirection: "row" }}>
+                                    <div style={{ marginTop: 3 }}>{collateralToken.balance}{` `}{collateralToken.symbol}</div>
+                                    {!isMainnet && (
+                                        <Button onClick={onFaucet} style={{ marginLeft: 5 }} color="info" size="sm">
+                                            <DollarSign size={16} />
+                                        </Button>
+                                    )}
+
                                 </td>
                             </tr>
                             <tr>
@@ -200,7 +248,7 @@ const TradePanel = ({ setDepositModal }) => {
                                     <InputGroup>
                                         <Input value={buyPrice.toLocaleString()} type="text" disabled name="buyPrice" id="buyPrice" />
                                         <InputGroupAddon addonType="append">
-                                            { collateralToken?.symbol }
+                                            {collateralToken?.symbol}
                                         </InputGroupAddon>
                                     </InputGroup>
                                 </FormGroup>
@@ -213,18 +261,9 @@ const TradePanel = ({ setDepositModal }) => {
                                     <InputGroup>
                                         <Input step="0.0001" value={amount} onChange={handleChange} type="number" name="buyAmount" id="buyAmount" />
                                         <InputGroupAddon addonType="append">
-                                            { djiPerpetual?.shareToken?.symbol }
+                                            {djiPerpetual?.shareToken?.symbol}
                                         </InputGroupAddon>
                                     </InputGroup>
-                                </FormGroup>
-                            </Col>
-                        </Row>
-                        <Row>
-                            <Col xs="12">
-                                <FormGroup>
-                                    <Label for="leverage">Leverage</Label>
-                                    <Slider />
-                                    <p>1.5x</p>
                                 </FormGroup>
                             </Col>
                         </Row>
@@ -239,7 +278,14 @@ const TradePanel = ({ setDepositModal }) => {
                                             {(amount * buyPrice).toLocaleString()}
                                         </td>
                                     </tr>
-
+                                    <tr>
+                                        <th scope="row">
+                                            <div>Leverage</div>
+                                        </th>
+                                        <td>
+                                            {Number(leverage).toLocaleString()}x
+                                        </td>
+                                    </tr>
                                 </tbody>
                             </Table>
                         </div>
@@ -257,7 +303,7 @@ const TradePanel = ({ setDepositModal }) => {
                                     <InputGroup>
                                         <Input value={sellPrice.toLocaleString()} type="text" disabled name="shortPrice" id="shortPrice" />
                                         <InputGroupAddon addonType="append">
-                                            { collateralToken?.symbol }
+                                            {collateralToken?.symbol}
                                         </InputGroupAddon>
                                     </InputGroup>
                                 </FormGroup>
@@ -270,13 +316,13 @@ const TradePanel = ({ setDepositModal }) => {
                                     <InputGroup>
                                         <Input step="0.0001" value={amount} onChange={handleChange} type="number" name="shortAmount" id="shortAmount" />
                                         <InputGroupAddon addonType="append">
-                                            { djiPerpetual?.shareToken?.symbol }
+                                            {djiPerpetual?.shareToken?.symbol}
                                         </InputGroupAddon>
                                     </InputGroup>
                                 </FormGroup>
                             </Col>
                         </Row>
-                        <Row>
+                        {/* <Row>
                             <Col xs="12">
                                 <FormGroup>
                                     <Label for="leverage">Leverage</Label>
@@ -284,7 +330,7 @@ const TradePanel = ({ setDepositModal }) => {
                                     <p>1.5x</p>
                                 </FormGroup>
                             </Col>
-                        </Row>
+                        </Row> */}
                         <div>
                             <Table>
                                 <tbody>
@@ -296,7 +342,14 @@ const TradePanel = ({ setDepositModal }) => {
                                             {(amount * sellPrice).toLocaleString()}
                                         </td>
                                     </tr>
-
+                                    <tr>
+                                        <th scope="row">
+                                            <div>Leverage</div>
+                                        </th>
+                                        <td>
+                                            {Number(leverage).toLocaleString()}x
+                                        </td>
+                                    </tr>
                                 </tbody>
                             </Table>
                         </div>
@@ -307,7 +360,7 @@ const TradePanel = ({ setDepositModal }) => {
                     </TabPane>
                 </TabContent>
             </Wrapper>
-            
+
         </>
     )
 }

@@ -76,11 +76,11 @@ const TokenList = styled(
 
                     <div>
                         <h5>Index Price</h5>
-                        <p>{djiPerpetual.indexPrice}{` `}{collateralToken.symbol}</p>
+                        <p>{Number(djiPerpetual.indexPrice).toLocaleString()}{` `}{collateralToken.symbol}</p>
                     </div>
                     <div>
                         <h5>Mark Price</h5>
-                        <p>{djiPerpetual.markPrice}{` `}{collateralToken.symbol}</p>
+                        <p>{Number(djiPerpetual.markPrice).toLocaleString()}{` `}{collateralToken.symbol}</p>
                     </div>
                     <div style={{ marginTop: 24 }}>
                         <u>Trade Now</u>

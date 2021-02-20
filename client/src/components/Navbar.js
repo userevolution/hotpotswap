@@ -166,7 +166,7 @@ const Main = () => {
             setLocked(true)
             add({
                 title: "Unsupported Network",
-                content: <div>Please switch to BSC Mainnet or Kovan network</div>
+                content: <div>Please switch to BSC Testnet or Kovan network</div>
             })
         }
     }, [error, locked])
@@ -223,11 +223,11 @@ const Main = () => {
                                     <Link to="/trade">Trade</Link>
                                 </NavLink>
                             </NavItem>
-                            <NavItem>
+                            {/* <NavItem>
                                 <NavLink>
                                     <Link to="/#about">How To Start</Link>
                                 </NavLink>
-                            </NavItem>
+                            </NavItem> */}
                             <NavItem>
                                 <NavLink>
                                     <Link to="/rules">GitHub</Link>

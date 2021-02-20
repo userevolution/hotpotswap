@@ -16,6 +16,9 @@ export const useERC20 = (chainId, account, library, tick) => {
         case 42:
             address = CONTRACTS.KOVAN.COLLATERAL_TOKEN
             break
+        case 97:
+            address = CONTRACTS.BSC_TESTNET.COLLATERAL_TOKEN
+            break
         default:
             address = chainId
     }
@@ -89,6 +92,12 @@ export const useERC20 = (chainId, account, library, tick) => {
         [erc20Contract, account]
     );
 
+    const faucet =  useCallback(
+        async () => {
+            return await erc20Contract.faucet()
+        },
+        [erc20Contract, account]
+    );
 
     useEffect(() => {
         erc20Contract && getBalance().then(setBalance);
@@ -102,6 +111,7 @@ export const useERC20 = (chainId, account, library, tick) => {
         approve,
         address,
         symbol,
-        allowance
+        allowance,
+        faucet
     }
 }

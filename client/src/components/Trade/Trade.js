@@ -26,6 +26,7 @@ import {
     FormGroup
 
 } from "reactstrap"
+import { useWeb3React } from '@web3-react/core'
 import TradingViewWidget from 'react-tradingview-widget';
 import Position from "./Position"
 import LiquidityPanel from "./LiquidityPanel"
@@ -127,13 +128,32 @@ const StatItem = styled(Col).attrs(props => ({
 
 const Trade = () => {
 
+    
+    const { chainId, account } = useWeb3React()
+
     const [panel, setPanel] = useState(0) // 0 - Trade , 1 - Liquidity
     const [depositModal, setDepositModal] = useState(false)
-    const { djiPerpetual, collateralToken } = useContext(ContractsContext)
+    const { djiPerpetual, collateralToken, increaseTick } = useContext(ContractsContext)
+
+    const { add, update } = useToasts()
 
     const toggleModal = useCallback(() => { 
         setDepositModal(!depositModal)
     }, [depositModal])
+
+    const onFaucet = useCallback(async () => {
+        const tx = await collateralToken.faucet()
+        const id = add(processingToast("Requesting tokens", "Your transaction is being processed", true, tx.hash, chainId))
+        await tx.wait()
+        update({
+            id,
+            ...processingToast("Received", "Your transaction is completed", false, tx.hash, chainId)
+        })
+
+        increaseTick()
+    },[collateralToken, chainId])
+
+    const isMainnet = chainId ? chainId === 56 : false
 
     return (
         <>
@@ -157,13 +177,13 @@ const Trade = () => {
                         <h4>
                             Index Price
                         </h4>
-                        <p>{djiPerpetual.indexPrice}{` `}{collateralToken.symbol}</p>
+                        <p>{Number(djiPerpetual.indexPrice).toLocaleString()}{` `}{collateralToken.symbol}</p>
                     </StatItem>
                     <StatItem>
                         <h4>
                             Mark Price
                         </h4>
-                        <p>{djiPerpetual.markPrice}{` `}{collateralToken.symbol}</p>
+                        <p>{Number(djiPerpetual.markPrice).toLocaleString()}{` `}{collateralToken.symbol}</p>
                     </StatItem>
                     <StatItem>
                         <h4>
@@ -178,15 +198,15 @@ const Trade = () => {
                         <p>{Number(djiPerpetual.accumulatedFunding) >= 0 ? "+" : "-"}{Number(djiPerpetual.accumulatedFunding).toLocaleString()}{` `}{collateralToken.symbol}</p>
                     </StatItem>
                 </Stats>
-                <Row>
+                <Row style={{marginBottom: 40}}>
                     <StyledCol xs="4">
                         <Tab>
                             <CustomTabItem active={panel === 0} onClick={() => setPanel(0)}>Trade</CustomTabItem>
                             <CustomTabItem active={panel === 1} onClick={() => setPanel(1)} >Liquidity</CustomTabItem>
                         </Tab>
                         <CustomTabContent>
-                            {panel === 0 && <TradePanel setDepositModal={setDepositModal} />}
-                            {panel === 1 && <LiquidityPanel setDepositModal={setDepositModal} />}
+                            {panel === 0 && <TradePanel account={account} isMainnet={isMainnet} onFaucet={onFaucet} setDepositModal={setDepositModal} />}
+                            {panel === 1 && <LiquidityPanel  account={account} isMainnet={isMainnet} onFaucet={onFaucet} setDepositModal={setDepositModal} />}
                         </CustomTabContent>
                     </StyledCol>
                     <StyledCol xs="8">
@@ -200,6 +220,8 @@ const Trade = () => {
             <DepositModal
                 depositModal={depositModal}
                 toggleModal={toggleModal}
+                account={account}
+                chainId={chainId}
             />
         </>
     )
@@ -222,7 +244,7 @@ const StyledModalBody = styled(ModalBody)`
 `
 
 
-const DepositModal = ({ depositModal, toggleModal }) => {
+const DepositModal = ({ chainId, account, depositModal, toggleModal }) => {
 
     const [side, setSide] = useState(0) // 0 - Deposit , 1 - Withdraw
     const [amount, setAmount] = useState(0)
@@ -247,54 +269,54 @@ const DepositModal = ({ depositModal, toggleModal }) => {
             )
 
         }
-    }, [collateralToken, djiPerpetual])
+    }, [collateralToken, djiPerpetual, account])
 
     const onDeposit = useCallback(async () => {
 
         if (Number(amount) > 0) {
             const tx = await djiPerpetual.deposit(`${amount}`)
             toggleModal()
-            const id = add(processingToast("Depositing", "Your transaction is being processed", true, tx.hash))
+            const id = add(processingToast("Depositing", "Your transaction is being processed", true, tx.hash, chainId))
             await tx.wait()
             update({
                 id,
-                ...processingToast("Deposited", "Your transaction is completed", false, tx.hash)
+                ...processingToast("Deposited", "Your transaction is completed", false, tx.hash, chainId)
             })
 
             increaseTick()
 
         }
 
-    }, [amount, djiPerpetual])
+    }, [amount, djiPerpetual, chainId])
 
     const onWithdraw = useCallback(async () => {
 
         if (Number(amount) > 0) {
             const tx = await djiPerpetual.withdraw(`${amount}`)
             toggleModal()
-            const id = add(processingToast("Withdrawing", "Your transaction is being processed", true, tx.hash))
+            const id = add(processingToast("Withdrawing", "Your transaction is being processed", true, tx.hash, chainId))
             await tx.wait()
             update({
                 id,
-                ...processingToast("Withdrawn", "Your transaction is completed", false, tx.hash)
+                ...processingToast("Withdrawn", "Your transaction is completed", false, tx.hash, chainId)
             })
 
             increaseTick()
         }
 
-    }, [amount, djiPerpetual])
+    }, [amount, djiPerpetual, chainId])
 
     const onApprove = useCallback(async () => {
 
         const tx = await collateralToken.approve(djiPerpetual.perpetualAddress)
-        const id = add(processingToast("Approving", "Your transaction is being processed", true, tx.hash))
+        const id = add(processingToast("Approving", "Your transaction is being processed", true, tx.hash, chainId))
         await tx.wait()
         setApproved(true)
         update({
             id,
-            ...processingToast("Approved", "Your transaction is completed", false, tx.hash)
+            ...processingToast("Approved", "Your transaction is completed", false, tx.hash, chainId)
         })
-    }, [collateralToken, djiPerpetual])
+    }, [collateralToken, djiPerpetual, chainId])
 
     return (
         <Modal isOpen={depositModal} toggle={toggleModal}>

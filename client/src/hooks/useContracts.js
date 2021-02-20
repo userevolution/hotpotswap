@@ -34,6 +34,10 @@ const Provider = ({ children }) => {
             perpetualAddress = CONTRACTS?.KOVAN?.PERPETUAL
             ammAddress = CONTRACTS?.KOVAN?.AMM
             break
+        case 97:
+            perpetualAddress = CONTRACTS?.BSC_TESTNET?.PERPETUAL
+            ammAddress = CONTRACTS?.BSC_TESTNET?.AMM
+            break
     }
 
     const increaseTick = useCallback(() => {

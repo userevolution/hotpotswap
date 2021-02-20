@@ -1,8 +1,9 @@
 import React, { useState, useCallback, useContext, useEffect } from 'react';
 import styled from "styled-components"
 import { Alert, Table, Container, FormGroup, Label, Nav, NavItem, NavLink, TabContent, TabPane, Jumbotron, Row, Col, Button, InputGroup, InputGroupAddon, InputGroupText, Input } from "reactstrap"
-import { Plus } from "react-feather"
+import { Plus, DollarSign } from "react-feather"
 import classnames from 'classnames';
+import { useWeb3React } from '@web3-react/core'
 import { Slider } from "../common"
 import useInterval from "../../hooks/useInterval"
 import { ContractsContext } from "../../hooks/useContracts"
@@ -44,10 +45,12 @@ const Error = ({ errorMessage }) => {
     )
 }
 
-const LiquidityPanel = ({ setDepositModal }) => {
+const LiquidityPanel = ({ account, setDepositModal, isMainnet, onFaucet }) => {
+
+    const { chainId } = useWeb3React()
 
     const [side, setSide] = useState(0) // 0 - add, 1 - remove
-    const { collateralToken, djiPerpetual } = useContext(ContractsContext)
+    const { collateralToken, djiPerpetual, increaseTick } = useContext(ContractsContext)
     const [errorMessage, setErrorMessage] = useState()
     const [currentPrice, setCurrentPrice] = useState(0)
     const [amount, setAmount] = useState(0.001)
@@ -93,7 +96,7 @@ const LiquidityPanel = ({ setDepositModal }) => {
             )
 
         }
-    }, [djiPerpetual])
+    }, [djiPerpetual, account])
 
     const handleChange = (e) => {
         setAmount(Number(e.target.value))
@@ -102,31 +105,57 @@ const LiquidityPanel = ({ setDepositModal }) => {
     const onAddLiquidity = useCallback(async () => {
 
         if (amount > 0) {
-            await djiPerpetual.addLiquidity(amount)
+            const tx = await djiPerpetual.addLiquidity(amount)
+            const id = add(processingToast("Adding liquidity", "Your transaction is being processed", true, tx.hash, chainId))
+            try {
+                await tx.wait()
+                update({
+                    id,
+                    ...processingToast("Added", "Your transaction is completed", false, tx.hash, chainId)
+                })
+                increaseTick()
+            } catch (e) {
+                alert("out of gas error - please try again")
+            }
+
         }
 
-    }, [amount])
+    }, [amount, djiPerpetual, chainId])
 
     const onRemoveLiquidity = useCallback(async () => {
 
         if (amount > 0) {
-            await djiPerpetual.removeLiquidity(amount)
+            const tx = await djiPerpetual.removeLiquidity(amount)
+            const id = add(processingToast("Removing liquidity", "Your transaction is being processed", true, tx.hash, chainId))
+
+            try {
+                await tx.wait()
+                update({
+                    id,
+                    ...processingToast("Removed", "Your transaction is completed", false, tx.hash, chainId)
+                })
+                increaseTick()
+            } catch (e) {
+                alert("out of gas error - please try again")
+            }
+
+
         }
 
-    }, [amount])
+    }, [amount, djiPerpetual, chainId])
 
     const onApprove = useCallback(async () => {
 
         const tx = await djiPerpetual.shareToken.approve(djiPerpetual.ammAddress)
-        const id = add(processingToast("Approving", "Your transaction is being processed", true, tx.hash))
+        const id = add(processingToast("Approving", "Your transaction is being processed", true, tx.hash, chainId))
         await tx.wait()
         setApproved(true)
         update({
             id,
-            ...processingToast("Approved", "Your transaction is completed", false, tx.hash)
+            ...processingToast("Approved", "Your transaction is completed", false, tx.hash, chainId)
         })
 
-    }, [djiPerpetual])
+    }, [djiPerpetual, chainId])
 
     return (
         <Wrapper>
@@ -138,10 +167,15 @@ const LiquidityPanel = ({ setDepositModal }) => {
                     <tbody>
                         <tr>
                             <th scope="row">
-                                Your Balance
+                                <div style={{ marginTop: 3 }}>Your Balance</div>
                             </th>
-                            <td>
-                                {collateralToken.balance}{` `}{collateralToken.symbol}
+                            <td style={{ display: "flex", flexDirection: "row" }}>
+                                <div style={{ marginTop: 3 }}>{collateralToken.balance}{` `}{collateralToken.symbol}</div>
+                                {!isMainnet && (
+                                    <Button onClick={onFaucet} style={{ marginLeft: 5 }} color="info" size="sm">
+                                        <DollarSign size={16} />
+                                    </Button>
+                                )}
                             </td>
                         </tr>
                         <tr>
