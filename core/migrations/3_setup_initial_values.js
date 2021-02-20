@@ -6,7 +6,7 @@ const MockToken = artifacts.require('MockToken')
 
 module.exports = async (deployer, network, accounts) => {
 
-    if (network === "development") {
+    if (network === "development" || network === "kovan") {
         
         const admin = accounts[0]
 
@@ -27,8 +27,8 @@ module.exports = async (deployer, network, accounts) => {
         //     from: admin
         // });
 
-        await perpetual.deposit(web3.utils.toWei("7000"), { from: admin })
-        await amm.createPool(web3.utils.toWei("0.1"), {
+        await perpetual.deposit(web3.utils.toWei("70000"), { from: admin })
+        await amm.createPool(web3.utils.toWei("1"), {
             from: admin
         });
 

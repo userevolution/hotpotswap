@@ -11,11 +11,11 @@ module.exports = async (deployer, network, accounts) => {
 
 
 
-    if (network === "development") {
+    if (network === "development" || network === "kovan") {
 
         const admin = accounts[0]
-        const alice = accounts[1]
-        const bob = accounts[2]
+        // const alice = accounts[1]
+        // const bob = accounts[2]
 
         // Setup account factory
         await deployer.deploy(TokenFactory, {
@@ -24,15 +24,15 @@ module.exports = async (deployer, network, accounts) => {
         // Setup Colleteral Token
         await deployer.deploy(
             MockToken,
-            "Binance USD",
+            "Fake Binance USD",
             "BUSD",
             {
                 from: admin
             })
 
-        const tokenInstance = await MockToken.at(MockToken.address);
-        await tokenInstance.transfer(alice, web3.utils.toWei("20000"), { from: admin })
-        await tokenInstance.transfer(bob, web3.utils.toWei("20000"), { from: admin })
+        // const tokenInstance = await MockToken.at(MockToken.address);
+        // await tokenInstance.transfer(alice, web3.utils.toWei("20000"), { from: admin })
+        // await tokenInstance.transfer(bob, web3.utils.toWei("20000"), { from: admin })
 
         // Setup Oracle
         await deployer.deploy(

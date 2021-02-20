@@ -9,4 +9,10 @@ contract MockToken is ERC20 {
     ) public ERC20(name, symbol) {
         _mint(msg.sender, 10000000 * (10 ** 18));
     }
+
+
+    function faucet() public {
+        _mint(msg.sender, 10000 * (10 ** 18));
+    }
+
 }
