@@ -41,11 +41,15 @@ We strive to provide the hybird perpetual contract solution rather than fully de
 
 ![slide-2](hotpotswap-poster-2.png)
 
-Every perpetual contract has its internal AMM that holding 2 tokens at the same weight when it's balanced and the AMM will execute trade orders on the opposite side when the user open short/long poisition automatically. The pool can be funed by liquidity provier who do not want to take risk and taken share tokens as a return.
+Every perpetual contract has its internal AMM that holding 2 tokens at the same weight when it's balanced. When the trader open either short or long position, the liquidity pool will execute an order on the opposide side automatically.
 
 ### Funding
 
 It's a mechanism to tether contracts to their underlying spot prices, every position holders will either pay or receive funding periodically and this is how the perpetual swap could be exciting than other derivative instruments. 
+
+## Video Demo
+
+[https://youtu.be/8o5UOmL_JWw](https://youtu.be/8o5UOmL_JWw) (Subtitled)
 
 ## Install
 
