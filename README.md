@@ -19,7 +19,7 @@ We formulate this idea during Binance Virtual Hackathon 2021 and evaluate a numb
 * Trader can short and long Dow Jones Index with BUSD and he/she will need to maintain the position above liquidation ratio.
 * Funding occurs when the trader execute the order or either been triggered by the price feeder bot that runs every hour.
 * Stock market indices are observed by internal oracle that fetch the data from Tradermade API.
-* Liqudation provider can help balance AMM towards the mark price by selling LP tokens and get some profit.
+* Liquidity provider can help balance AMM towards the mark price by selling LP tokens and get some profit.
 
 ### Road to BSC Mainnet
 
