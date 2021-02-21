@@ -179,7 +179,7 @@ const TradePanel = ({ setDepositModal, isMainnet, onFaucet }) => {
         <>
             <Wrapper>
                 <Description>
-                    simply dummy text of the printing and typesetting industry.
+                    You can easily short or long on the index via perpetual contract which has funding settlement at near real-time basis.
                 </Description>
                 <div>
                     <Table>

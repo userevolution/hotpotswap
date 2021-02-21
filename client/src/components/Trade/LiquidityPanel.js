@@ -160,7 +160,7 @@ const LiquidityPanel = ({ account, setDepositModal, isMainnet, onFaucet }) => {
     return (
         <Wrapper>
             <Description>
-                simply dummy text of the printing and typesetting industry.
+                Provide liquidity to the pool, help reduce slippage and earn profit from spread. The reward will be provided soon.
             </Description>
             <div>
                 <Table>
