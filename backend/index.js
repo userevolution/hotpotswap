@@ -67,7 +67,9 @@ const feederBot = async (event) => {
 
             const ammBscTestnetContract = new ethers.Contract("0xda87577f9eb8B15B26C00619FD06d4485880310D", AMM.abi, bscTestnetProvider.getSigner());
 
-            await ammBscTestnetContract.updateIndex()
+            await ammBscTestnetContract.updateIndex({
+                gasPrice: 20000000000
+            })
 
         } catch (e) {
             console.log("Update index in BSC Testnet failed : ", e.message)
@@ -91,7 +93,9 @@ const feederBot = async (event) => {
 
             const ammKovanContract = new ethers.Contract("0x4D97Bd8eFaCf46b33c4438Ed0B7B6AABfa2359FB", AMM.abi, kovanProvider.getSigner());
 
-            await ammKovanContract.updateIndex()
+            await ammKovanContract.updateIndex({
+                gasPrice: 20000000000
+            })
 
         } catch (e) {
             console.log("Update index in Kovan failed : ", e.message)
