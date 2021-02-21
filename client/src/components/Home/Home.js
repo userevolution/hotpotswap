@@ -32,7 +32,7 @@ const Headline = styled(
                 <div>
                     <h3>Live the Live Market</h3>
                     <p>
-                        HotpotSwap allows trade Stock Market indices on Binance Smart Chain via Perpetual Swap up to 10x leverage using BUSD as a collateral built for Bridging DeFi & CeFi.
+                        HotpotSwap allows trade any major stock market indices up to 10x leverage via perpetual swap contracts using BUSD as a collateral on Binance Smart Chain.
                     </p>
                 </div>
             </div>
@@ -224,7 +224,7 @@ const Landing = () => {
             <Headline />
             <div style={{padding: 20, paddingBottom: 0, textAlign : "center"}}>
                 <Alert color="primary">
-                   <AlertTriangle size={18}/> Please note that we're live only on Kovan and BSC Testnet at the momment, make sure you are connected to the correct network. The project is under heavy development towards the launch on BSC Mainnet.
+                   <AlertTriangle size={18}/> Please note that we're live only on Kovan and BSC Testnet at the moment, make sure you're connected to the correct network. The project is under heavy development towards the launch on BSC Mainnet.
             </Alert>
             </div>
 
