@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useContext } from 'react';
 import styled from "styled-components"
 import { Alert, Container, Jumbotron, Row, Col, Button, InputGroup, InputGroupAddon, InputGroupText, Input } from "reactstrap"
-import { Search } from "react-feather"
+import { Search, AlertTriangle } from "react-feather"
 import { useHistory } from "react-router-dom";
 import FlagHK from "../../assets/img/flag-hkg.png"
 import FlagUS from "../../assets/img/flag-us.png"
@@ -32,7 +32,7 @@ const Headline = styled(
                 <div>
                     <h3>Live the Live Market</h3>
                     <p>
-                    Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam
+                        HotpotSwap allows trade Stock Market indices on Binance Smart Chain via Perpetual Swap up to 10x leverage using BUSD as a collateral built for Bridging DeFi & CeFi.
                     </p>
                 </div>
             </div>
@@ -40,7 +40,7 @@ const Headline = styled(
     })`
     text-align: center; 
     padding-top: 30px;
-    padding-bottom: 30px;
+    padding-bottom: 10px;
     
     div {
         margin-left: auto;
@@ -48,6 +48,17 @@ const Headline = styled(
         max-width: 800px;
     }
     `
+
+const HowtoUse = () => {
+    return (
+        <div>
+            <div style={{textAlign :"center", marginTop: 20}}>
+                <h3>How to Use</h3>
+            </div>
+            
+        </div>
+    )
+}
 
 const TokenList = styled(
     ({ className }) => {
@@ -188,69 +199,39 @@ const TokenList = styled(
 
     `
 
-const HowToUse = styled(
-    ({ className }) => {
-        return (
-            <Col className={className} xs="12">
-                <div className="-body">
-                    HowToUse
-                </div>
-            </Col>
-        )
-    })`
-    padding: 15px;
-    >.-body {
-        border : 1px solid black;
-        border-radius: 8px;
-        padding: 20px;
-        min-height: 400px 
-    }
-    `
+// const HowToUse = styled(
+//     ({ className }) => {
+//         return (
+//             <Col className={className} xs="12">
+//                 <div className="-body">
+//                     HowToUse
+//                 </div>
+//             </Col>
+//         )
+//     })`
+//     padding: 15px;
+//     >.-body {
+//         border : 1px solid black;
+//         border-radius: 8px;
+//         padding: 20px;
+//         min-height: 400px 
+//     }
+//     `
 
 const Landing = () => {
     return (
         <Wrapper>
-            {/* <Alert color="primary">
-                We're live on Binance Smart Chain. 
-            </Alert> */}
             <Headline />
+            <div style={{padding: 20, paddingBottom: 0, textAlign : "center"}}>
+                <Alert color="primary">
+                   <AlertTriangle size={18}/> Please note that we're live only on Kovan and BSC Testnet at the momment, make sure you are connected to the correct network. The project is under heavy development towards the launch on BSC Mainnet.
+            </Alert>
+            </div>
+
             <TokenList />
 
-            {/* header */}
-            {/* <Jumbotron className="jumbotron">
-                <h4 className="display-3">Article nor prepare chicken you him now.</h4>
-                <p className="lead">You disposal strongly quitting his endeavor two settling him.</p>
-                <Row className="search">
-                    <Col sm="12" lg="6">
-                        <InputGroup size="lg">
-                            <InputGroupAddon addonType="prepend">
-                                <InputGroupText><Search /></InputGroupText>
-                            </InputGroupAddon>
-                            <Input />
-                        </InputGroup>
-                    </Col>
-                </Row>
-                <ul>
-                    <li>Don't have an address? View demo.</li>
-                    <li>What is DeFi?</li>
-                    <li>Binance Smart Chain?</li>
-                </ul>
-            </Jumbotron> */}
-            {/* stats */}
-            {/* <Row>
-                <Card
-                    title={"Total Burned"}
-                />
-                <Card
-                    title={"Total Assets"}
-                />
-                <Card
-                    title={"xxxx"}
-                />
-            </Row>
-            <Row>
-                <HowToUse />
-            </Row> */}
+            <HowtoUse/>
+
 
         </Wrapper>
     )

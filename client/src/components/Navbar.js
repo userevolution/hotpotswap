@@ -233,7 +233,7 @@ const Main = () => {
                             </NavItem> */}
                             <NavItem>
                                 <NavLink>
-                                    <Link to="/rules">GitHub</Link>
+                                    <a target="_blank"  href="https://github.com/pisuthd/hotpotswap">GitHub</a>
                                 </NavLink>
                             </NavItem>
                             {!account
