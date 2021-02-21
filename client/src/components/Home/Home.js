@@ -51,12 +51,50 @@ const Headline = styled(
 
 const HowtoUse = () => {
     return (
-        <div>
-            <div style={{textAlign :"center", marginTop: 20}}>
+        <div style={{ textAlign: "center" }}>
+            <div style={{ marginTop: 20, marginBottom: 20 }}>
                 <h3>How to Use</h3>
             </div>
-            
+            <Row>
+                <Col xs="6">
+                    <h6>For Trader</h6>
+                    <p>
+                        A trader can open a short or long position if he or she expects the index move up or down.
+                    </p>
+
+                </Col>
+                <Col xs="6">
+                    <h6>For Liquidity Provider</h6>
+                    <p>
+                        Liquidity provider can help balance the AMM pool and take profit from spread and slippage.
+                    </p>
+
+                </Col>
+            </Row>
         </div>
+    )
+}
+
+const FooterWrapper = styled.div`
+    text-align: center;
+
+    a {
+        color: inherit;
+
+        :hover {
+            text-decoration: underline;
+        }
+    }
+
+`
+
+const Footer = () => {
+    return (
+        <FooterWrapper>
+            <div style={{ marginTop: 40, marginBottom: 20 }}>
+                <a target="_blank"  href="https://twitter.com/hotpotswap">Twitter</a> | <a target="_blank"  href="https://medium.com/hotpotswap">Medium</a> | <a target="_blank"  href="https://github.com/pisuthd/hotpotswap">GitHub</a>
+            </div>
+        </FooterWrapper>
     )
 }
 
@@ -222,15 +260,17 @@ const Landing = () => {
     return (
         <Wrapper>
             <Headline />
-            <div style={{padding: 20, paddingBottom: 0, textAlign : "center"}}>
+            <div style={{ padding: 20, paddingBottom: 0, textAlign: "center" }}>
                 <Alert color="primary">
-                   <AlertTriangle size={18}/> Please note that we're live only on Kovan and BSC Testnet at the moment, make sure you're connected to the correct network. The project is under heavy development towards the launch on BSC Mainnet.
+                    <AlertTriangle size={18} /> Please note that we're live only on Kovan and BSC Testnet at the moment, make sure you're connected to the correct network. The project is under heavy development towards the launch on BSC Mainnet.
             </Alert>
             </div>
 
             <TokenList />
 
-            <HowtoUse/>
+            <HowtoUse />
+
+            <Footer />
 
 
         </Wrapper>
