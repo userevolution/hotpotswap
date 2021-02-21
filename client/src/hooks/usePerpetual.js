@@ -146,7 +146,7 @@ export const usePerpetual = (perpetualAddress, ammAddress, account, library, tic
             return await perpetualContract.withdraw(
                 ethers.utils.parseEther(amount),
                 {
-                    gasPrice: 70000000000
+                    // gasPrice: 70000000000
                 }
             )
         },
@@ -170,28 +170,28 @@ export const usePerpetual = (perpetualAddress, ammAddress, account, library, tic
     const buy = useCallback(async (amount) => {
         // TODO : increase gas price
         return await ammContract.buy(ethers.utils.parseEther(`${amount}`), ethers.utils.parseEther(`50000`), 9999999999999, {
-            gasPrice: 70000000000
+            // gasPrice: 70000000000
         })
     }, [ammContract, account])
 
     const sell = useCallback(async (amount) => {
         // TODO : increase gas price
         return await ammContract.sell(ethers.utils.parseEther(`${amount}`), 0, 9999999999999, {
-            gasPrice: 70000000000
+            // gasPrice: 70000000000
         })
     }, [ammContract, account])
 
     const addLiquidity = useCallback(async (amount) => {
         // TODO : increase gas price
         return await ammContract.addLiquidity(ethers.utils.parseEther(`${amount}`), { 
-            gasPrice: 70000000000
+            // gasPrice: 70000000000
         })
     }, [ammContract, account])
 
     const removeLiquidity = useCallback(async (lpAmount) => {
         // TODO : increase gas price
         return await ammContract.removeLiquidity(ethers.utils.parseEther(`${lpAmount}`), {
-            gasPrice: 70000000000
+            // gasPrice: 70000000000
         })
     }, [ammContract, account])
 
