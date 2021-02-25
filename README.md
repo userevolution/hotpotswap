@@ -2,7 +2,7 @@
 
 ![slide](hotpotswap-poster.png)
 
-This monorepo contains all Solidity smart contracts, apps and services for the HotpotSwap platform which allows trade stock market indices in the form of crytocurrency synthetic assets via perpetual swap contracts. 
+This monorepo contains all Solidity smart contracts, apps and services for the HotpotSwap platform which allows trade stock market indices in the form of cryptocurrency synthetic assets via perpetual swap contracts. 
 
 The project is under heavy development and currently live on BSC Testnet and Kovan network only, check out at: [https://hotpotswap.fi](https://hotpotswap.fi)
 
